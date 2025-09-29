@@ -1,0 +1,30 @@
+{
+  "annotation.cache.object": {
+    "annotation.personal.highlight": [
+      {
+        "text": "",
+        "startPosition": "0 0 479 1 153 250 81 14",
+        "endPosition": "0 0 479 1 234 250 81 14",
+        "creationTime": "2024-12-01T10:30:00Z"
+      },
+      {
+        "text": "",
+        "startPosition": "0 0 1513 1 248 591 47 14", 
+        "endPosition": "0 0 1513 1 295 591 47 14",
+        "creationTime": "2024-12-01T10:31:00Z"
+      }
+    ],
+    "annotation.personal.note": [
+      {
+        "text": "Test note 1",
+        "startPosition": "0 0 1111 1 200 300 50 15",
+        "creationTime": "2024-12-01T10:32:00Z"
+      },
+      {
+        "text": "Test note 2", 
+        "startPosition": "0 0 2222 1 400 500 60 20",
+        "creationTime": "2024-12-01T10:33:00Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+Sample Book Title (Author Name)
+- Your Highlight on Location 156-157 | Added on Wednesday, March 15, 2023 2:34:15 PM
+
+This is an example highlight from a book that demonstrates how Kindle annotations work.
+==========
+Sample Book Title (Author Name)
+- Your Note on Location 158 | Added on Wednesday, March 15, 2023 2:35:22 PM
+
+This is a personal note I added while reading this section.
+==========
+Sample Book Title (Author Name)
+- Your Highlight on Location 234-236 | Added on Wednesday, March 15, 2023 3:12:45 PM
+
+Another highlighted passage that caught my attention while reading.
+==========
+Sample Book Title (Author Name)
+- Your Bookmark on Location 245 | Added on Wednesday, March 15, 2023 3:15:00 PM
+
+==========
+Different Book (Different Author)
+- Your Highlight on Page 67 | Added on Thursday, March 16, 2023 10:22:18 AM
+
+This highlight is from a different book to show how multiple books are handled.
+==========
