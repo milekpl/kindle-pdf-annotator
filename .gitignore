@@ -90,3 +90,6 @@ FINAL_annotated*.pdf
 
 # Logs
 *.log
+/examples/sample_data/My Clippings.txt
+/examples/sample_data/rorot-thesis-20250807.pdf-cdeKey_JYNVMDRY7J75ES562LQBJ3DLQFPWQ42M.sdr
+/examples/sample_data/rorot-thesis-20250807.pdf-cdeKey_JYNVMDRY7J75ES562LQBJ3DLQFPWQ42M.pdf
