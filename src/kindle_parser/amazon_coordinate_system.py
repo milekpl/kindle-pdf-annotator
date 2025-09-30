@@ -11,7 +11,8 @@ Key discoveries:
 
 import json
 import fitz  # PyMuPDF
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from pathlib import Path
 
 
 # Kindle coordinate system constants (BREAKTHROUGH: inches * 100 encoding!)
@@ -41,7 +42,8 @@ def convert_kindle_to_pdf_coordinates(kindle_x: float, kindle_y: float, pdf_rect
         (pdf_x, pdf_y) tuple in PDF coordinate system
     """
     # X coordinate: linear mapping discovered from actual PDF text positions  
-    pdf_x = 0.717895 * kindle_x + 0.962
+    # Adjusted to extend further right for PDFs with minimal margins
+    pdf_x = 0.717895 * kindle_x + 0.962 + 7.0  # Add 7 points to extend right
     
     # Y coordinate: linear mapping discovered from actual PDF text positions
     # Higher Y values = closer to TOP of page (negative slope!)
@@ -52,34 +54,54 @@ def convert_kindle_to_pdf_coordinates(kindle_x: float, kindle_y: float, pdf_rect
     y_from_bottom_inches = page_height_inches - y_from_top_inches
     pdf_y = y_from_bottom_inches * 72.0  # Convert to points
     
-    # Fine adjustment: move highlights down by 7 points to fix vertical offset
-    pdf_y += 7.0
+    # Fine adjustment: move highlights down by 3 points to fix vertical offset
+    pdf_y += 3.0
     
     return pdf_x, pdf_y
 
 
-def create_amazon_compliant_annotations(json_file_path: str, clippings_file: str, book_name: str) -> List[Dict[str, Any]]:
+def create_amazon_compliant_annotations(krds_file_path: str, clippings_file: Optional[str], book_name: str) -> List[Dict[str, Any]]:
     """
     Create annotations using Amazon's coordinate system algorithm
+    Parses KRDS files directly without JSON intermediaries
+    
+    Args:
+        krds_file_path: Path to the KRDS file 
+        clippings_file: Optional path to MyClippings.txt file for enhanced accuracy
+        book_name: Name of the book for matching
     """
     print("🔧 CREATING KINDLE ANNOTATIONS WITH IMPROVED COORDINATES")
     print(f"   Using verified coordinate system: inches * 100 + margins ({KINDLE_LEFT_MARGIN}pt, {KINDLE_TOP_MARGIN}pt)")
     print("   ✅ Coordinates now match PDF-Xchange viewer exactly!")
+
+    # Parse MyClippings with our fixed parser (if provided)
+    myclippings_entries = []
+    if clippings_file and Path(clippings_file).exists():
+        try:
+            from .fixed_clippings_parser import parse_myclippings_for_book
+            myclippings_entries = parse_myclippings_for_book(clippings_file, book_name)
+            print(f"📝 Loaded {len(myclippings_entries)} clippings from MyClippings.txt")
+        except Exception as e:
+            print(f"⚠️  Warning: Could not parse MyClippings.txt: {e}")
+            myclippings_entries = []
+    else:
+        print("📝 No MyClippings.txt provided - using KRDS data only")
+
+    # Parse KRDS file directly
+    from .krds_parser import KindleReaderDataStore
+    krds_parser = KindleReaderDataStore(krds_file_path)
     
-    # Parse MyClippings with our fixed parser
-    from .fixed_clippings_parser import parse_myclippings_for_book
-    myclippings_entries = parse_myclippings_for_book(clippings_file, book_name)
+    # Extract annotations using the proper method
+    krds_annotations = krds_parser.extract_annotations()
     
-    # Parse JSON
-    with open(json_file_path, 'r', encoding='utf-8') as f:
-        json_data = json.load(f)
+    print(f"   📊 KRDS annotations extracted: {len(krds_annotations)}")
     
-    highlights = json_data.get('annotation.cache.object', {}).get('annotation.personal.highlight', [])
-    notes = json_data.get('annotation.cache.object', {}).get('annotation.personal.note', [])
+    # Separate highlights and notes
+    highlights = [ann for ann in krds_annotations if 'highlight' in ann.annotation_type]
+    notes = [ann for ann in krds_annotations if 'note' in ann.annotation_type]
     
-    print(f"   📊 MyClippings entries: {len(myclippings_entries)}")
-    print(f"   📊 JSON highlights: {len(highlights)}")  
-    print(f"   📊 JSON notes: {len(notes)}")
+    print(f"   📊 KRDS highlights: {len(highlights)}")
+    print(f"   📊 KRDS notes: {len(notes)}")
     
     # Process annotations with correct coordinate conversion
     corrected_annotations = []
@@ -87,22 +109,26 @@ def create_amazon_compliant_annotations(json_file_path: str, clippings_file: str
     # We'll need PDF dimensions, so let's get them (assuming we know the PDF path)
     # For now, use standard A4 dimensions as approximation
     standard_pdf_rect = fitz.Rect(0, 0, 595.3, 841.9)  # A4 dimensions
+    pdf_rect_width = standard_pdf_rect.width
+    pdf_rect_height = standard_pdf_rect.height
     
     print(f"\n🎯 CONVERTING COORDINATES:")
     print(f"   Using PDF dimensions: {standard_pdf_rect.width:.1f} x {standard_pdf_rect.height:.1f}")
     
     for highlight in highlights:
-        pos_parts = highlight['startPosition'].split()
-        if len(pos_parts) >= 8:
-            json_page = int(pos_parts[0])
-            kindle_x = float(pos_parts[4])
-            kindle_y = float(pos_parts[5])
-            width = float(pos_parts[6])
-            height = float(pos_parts[7])
+        if highlight.start_position.valid:
+            json_page = highlight.start_position.page
+            kindle_x = highlight.start_position.x
+            kindle_y = highlight.start_position.y
+            width = highlight.start_position.width
+            height = highlight.start_position.height
             
             # Convert using inches-based coordinate system  
             pdf_x, pdf_y = convert_kindle_to_pdf_coordinates(kindle_x, kindle_y, standard_pdf_rect)
             
+            start_raw = highlight.start_position.raw if hasattr(highlight.start_position, "raw") else ""
+            end_raw = highlight.end_position.raw if hasattr(highlight.end_position, "raw") else ""
+
             corrected_annotations.append({
                 'type': 'highlight',
                 'json_page_0based': json_page,
@@ -114,6 +140,10 @@ def create_amazon_compliant_annotations(json_file_path: str, clippings_file: str
                 'kindle_y': kindle_y,
                 'kindle_width': width,
                 'kindle_height': height,
+                'start_position': start_raw,
+                'end_position': end_raw,
+                'pdf_rect_width': pdf_rect_width,
+                'pdf_rect_height': pdf_rect_height,
                 
                 # Inches-based coordinates (discovered system)
                 'kindle_x_inches': kindle_x / 100.0,
@@ -124,22 +154,24 @@ def create_amazon_compliant_annotations(json_file_path: str, clippings_file: str
                 'pdf_y': pdf_y,
                 
                 'content': '',
-                'timestamp': highlight.get('creationTime', ''),
+                'timestamp': highlight.creation_time or '',
                 'source': 'json_highlight_amazon_converted'
             })
     
     for note in notes:
-        pos_parts = note['startPosition'].split()
-        if len(pos_parts) >= 8:
-            json_page = int(pos_parts[0])
-            kindle_x = float(pos_parts[4])
-            kindle_y = float(pos_parts[5])
-            width = float(pos_parts[6])
-            height = float(pos_parts[7])
+        if note.start_position.valid:
+            json_page = note.start_position.page
+            kindle_x = note.start_position.x
+            kindle_y = note.start_position.y
+            width = note.start_position.width
+            height = note.start_position.height
             
             # Convert using inches-based coordinate system  
             pdf_x, pdf_y = convert_kindle_to_pdf_coordinates(kindle_x, kindle_y, standard_pdf_rect)
             
+            start_raw = note.start_position.raw if hasattr(note.start_position, "raw") else ""
+            end_raw = note.end_position.raw if hasattr(note.end_position, "raw") else ""
+
             corrected_annotations.append({
                 'type': 'note',
                 'json_page_0based': json_page,
@@ -151,6 +183,10 @@ def create_amazon_compliant_annotations(json_file_path: str, clippings_file: str
                 'kindle_y': kindle_y,
                 'kindle_width': width,
                 'kindle_height': height,
+                'start_position': start_raw,
+                'end_position': end_raw,
+                'pdf_rect_width': pdf_rect_width,
+                'pdf_rect_height': pdf_rect_height,
                 
                 # Inches-based coordinates (discovered system)
                 'kindle_x_inches': kindle_x / 100.0,
@@ -160,8 +196,8 @@ def create_amazon_compliant_annotations(json_file_path: str, clippings_file: str
                 'pdf_x': pdf_x,
                 'pdf_y': pdf_y,
                 
-                'content': note.get('note', ''),
-                'timestamp': note.get('creationTime', ''),
+                'content': note.note_text,
+                'timestamp': note.creation_time or '',
                 'source': 'json_note_amazon_converted'
             })
     
@@ -200,10 +236,36 @@ def create_amazon_compliant_annotations(json_file_path: str, clippings_file: str
     # Sort by page and position
     corrected_annotations.sort(key=lambda x: (x['pdf_page_0based'], x['pdf_y']))
     
-    print(f"\n📝 AMAZON CONVERSION SUMMARY:")
-    print(f"   Total converted annotations: {len(corrected_annotations)}")
+    # Deduplicate annotations based on type, page, and coordinates
+    print(f"\n� DEDUPLICATING ANNOTATIONS:")
+    print(f"   Before deduplication: {len(corrected_annotations)}")
     
-    # Check for coordinate duplicates (should be much fewer now!)
+    unique_annotations = []
+    seen_keys = set()
+    
+    for ann in corrected_annotations:
+        # Create a key that includes type, page, and approximate position
+        dedup_key = (
+            ann['type'],
+            ann['pdf_page_0based'],
+            round(ann['pdf_x'], 1),
+            round(ann['pdf_y'], 1),
+            ann.get('content', '').strip()[:50]  # First 50 chars of content
+        )
+        
+        if dedup_key not in seen_keys:
+            seen_keys.add(dedup_key)
+            unique_annotations.append(ann)
+        else:
+            print(f"   🗑️  Skipped duplicate: {ann['type']} on page {ann['pdf_page_0based']} - {ann.get('content', '')[:30]}...")
+    
+    corrected_annotations = unique_annotations
+    print(f"   After deduplication: {len(corrected_annotations)}")
+    
+    print(f"\n�📝 AMAZON CONVERSION SUMMARY:")
+    print(f"   Total unique annotations: {len(corrected_annotations)}")
+    
+    # Check for remaining coordinate duplicates
     coordinate_groups = {}
     for ann in corrected_annotations:
         key = (ann['pdf_page_0based'], round(ann['pdf_x'], 1), round(ann['pdf_y'], 1))
@@ -221,17 +283,6 @@ def create_amazon_compliant_annotations(json_file_path: str, clippings_file: str
             print(f"      Page {page}, ({x:.1f}, {y:.1f}): {types}")
     else:
         print(f"   ✅ No coordinate duplicates!")
-    
-    # Test specific "Whom" annotation
-    print("\n🔍 'WHOM' ANNOTATION TEST:")
-    for ann in corrected_annotations:
-        if ann['content'] and 'Whom' in ann['content']:
-            print(f"   Content: '{ann['content']}'")
-            print(f"   Kindle coordinates: ({ann['kindle_x']:.0f}, {ann['kindle_y']:.0f})")
-            print(f"   Inches coordinates: ({ann['kindle_x_inches']:.2f}\", {ann['kindle_y_inches']:.2f}\")")
-            print(f"   PDF coordinates: ({ann['pdf_x']:.1f}, {ann['pdf_y']:.1f})")
-            print(f"   Page: {ann['pdf_page_0based']} (0-based)")
-            break
     
     return corrected_annotations
 

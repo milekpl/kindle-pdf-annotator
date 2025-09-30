@@ -72,10 +72,8 @@ Thumbs.db
 
 # Project specific
 *.pdf
-*.png
 *.jpg
 *.jpeg
-!screenshot.png
 !examples/**/*.pdf
 !tests/**/*.pdf
 CLI_OUTPUT_TEST*.pdf

@@ -4,21 +4,20 @@ Kindle PDF Annotator - Command Line Interface
 Uses the Amazon coordinate system for accurate annotation placement
 """
 
-import sys
 import argparse
 import json
+import sys
 import tempfile
 from pathlib import Path
-
-# Import the working Amazon coordinate system
-from src.kindle_parser.amazon_coordinate_system import create_amazon_compliant_annotations
-from src.pdf_processor.amazon_to_pdf_adapter import convert_amazon_to_pdf_annotator_format
 
 # Add src directory to Python path
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
-from pdf_processor.pdf_annotator import annotate_pdf_file
+# Import the working Amazon coordinate system
+from src.kindle_parser.amazon_coordinate_system import create_amazon_compliant_annotations
+from src.pdf_processor.amazon_to_pdf_adapter import convert_amazon_to_pdf_annotator_format
+from src.pdf_processor.pdf_annotator import annotate_pdf_file
 
 
 def main():
@@ -46,18 +45,45 @@ def main():
     pdf_name = Path(args.pdf_file).stem
     print(f"Processing annotations for: {pdf_name}")
     
-    # Find JSON file (PDS format)
+    # Find KRDS file (.pds or .pdt)
     kindle_folder_path = Path(args.kindle_folder)
-    json_files = list(kindle_folder_path.glob("*.json"))
+    krds_files = list(kindle_folder_path.glob("*.pds")) + list(kindle_folder_path.glob("*.pdt"))
     
-    if not json_files:
-        print(f"Error: No JSON files found in {args.kindle_folder}")
-        print("Expected format: <book-name>.pdf-cdeKey_<key>.sdr/<book-name>.pdf-cdeKey_<key><hash>.pds.json")
+    # Also check .sdr subdirectories
+    for sdr_dir in kindle_folder_path.glob("*.sdr"):
+        if sdr_dir.is_dir():
+            krds_files.extend(sdr_dir.glob("*.pds"))
+            krds_files.extend(sdr_dir.glob("*.pdt"))
+    
+    if not krds_files:
+        print(f"Error: No KRDS files (.pds or .pdt) found in {args.kindle_folder}")
+        print("Expected format: <book-name>.pdf-cdeKey_<key>.sdr/ or .pds/.pdt files in folder")
         sys.exit(1)
     
-    # Use the first JSON file found (assuming single book per folder)
-    json_file = str(json_files[0])
-    print(f"Found JSON file: {Path(json_file).name}")
+    print(f"Found {len(krds_files)} KRDS files:")
+    for i, krds_file in enumerate(krds_files, 1):
+        print(f"  {i}. {krds_file}")
+    
+    # Find the KRDS file that matches the PDF filename
+    pdf_path = Path(args.pdf_file)
+    pdf_name = pdf_path.stem
+    
+    # Look for KRDS files that match the PDF name
+    matching_krds = []
+    for krds_file in krds_files:
+        krds_path = Path(krds_file)
+        # Check if the KRDS file name or its parent directory contains the PDF name
+        if pdf_name in krds_path.name or pdf_name in krds_path.parent.name:
+            matching_krds.append(krds_file)
+    
+    if matching_krds:
+        krds_file = str(matching_krds[0])
+        print(f"Found matching KRDS file for PDF: {Path(krds_file).name}")
+    else:
+        # Fallback to first file if no match found
+        krds_file = str(krds_files[0])
+        print(f"No specific match found, using first KRDS file: {Path(krds_file).name}")
+        print(f"Warning: This KRDS file may not be for the specified PDF!")
     
     # Set up MyClippings file path
     clippings_file = args.clippings
@@ -76,11 +102,11 @@ def main():
     # Use Amazon coordinate system to get annotations
     print("Processing annotations with Amazon coordinate system...")
     try:
-        # Extract book name from JSON file path for matching with MyClippings
+        # Extract book name from KRDS file path for matching with MyClippings
         book_name = pdf_name  # Start with PDF name
         # Try to extract from path if it follows Kindle format
-        if "cdeKey_" in json_file:
-            parts = Path(json_file).parent.name.split("-cdeKey_")
+        if "cdeKey_" in krds_file:
+            parts = Path(krds_file).parent.name.split("-cdeKey_")
             if parts:
                 book_name = parts[0]
         
@@ -95,7 +121,7 @@ def main():
         else:
             temp_file_created = False
         
-        amazon_annotations = create_amazon_compliant_annotations(json_file, clippings_file, book_name)
+        amazon_annotations = create_amazon_compliant_annotations(krds_file, clippings_file, book_name)
         print(f"Found {len(amazon_annotations)} annotations using Amazon coordinate system")
         
         # Clean up temp file if created

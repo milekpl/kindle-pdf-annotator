@@ -9,6 +9,7 @@ from pathlib import Path
 import threading
 import json
 import logging
+import re
 from typing import Dict, List, Any, Optional
 
 # Import our modules
@@ -288,42 +289,41 @@ class KindlePDFAnnotatorGUI:
         try:
             self._log_message("🚀 Starting annotation processing with corrected page mapping...")
             
-            # Step 1: Find and parse JSON files using the FINAL corrected parser
+            # Step 1: Find and parse KRDS files (.pds/.pdt) using the integrated parser
             annotations = []
-            pdf_name = Path(self.pdf_file).stem
-            
-            self._log_message(f"Looking for JSON files for PDF: {pdf_name}")
-            
-            # Find JSON files in .sdr folder
-            json_files = []
-            if self.kindle_folder:
-                kindle_path = Path(self.kindle_folder)
-                for json_file in kindle_path.rglob("*.json"):
-                    if pdf_name in str(json_file):
-                        json_files.append(json_file)
-            
-            self._log_message(f"Found {len(json_files)} JSON files")
-            
-            # Parse each JSON file with FINAL corrected parser
-            for json_file in json_files:
+            pdf_path = Path(self.pdf_file)
+            pdf_name = pdf_path.stem
+
+            self._log_message(f"Looking for KRDS files for PDF: {pdf_name}")
+
+            kindle_path = Path(self.kindle_folder)
+            krds_files = self._find_relevant_krds_files(kindle_path, pdf_path)
+
+            if not krds_files:
+                self._log_message("❌ No KRDS files matched the selected PDF. Check Kindle folder or file naming.")
+            else:
+                self._log_message(f"Found {len(krds_files)} matching KRDS files:")
+                for i, krds_file in enumerate(krds_files, 1):
+                    self._log_message(f"  {i}. {krds_file}")
+
+            # Parse each KRDS file with integrated parser
+            for krds_file in krds_files:
                 try:
-                    # Use FINAL corrected parser with MyClippings.txt for accurate page mapping
+                    # Use integrated KRDS parser with optional MyClippings.txt for page mapping
                     clippings_file = self.clippings_file if self.clippings_file and Path(self.clippings_file).exists() else None
-                    if not clippings_file:
-                        self._log_message(f"❌ MyClippings.txt file required for corrected parsing")
-                        continue
-                        
+                    
                     file_annotations = create_amazon_compliant_annotations(
-                        str(json_file), 
+                        str(krds_file), 
                         clippings_file, 
                         pdf_name
                     )
                     
                     annotations.extend(file_annotations)
                     
-                    self._log_message(f"✅ Extracted {len(file_annotations)} annotations from {json_file.name} with AMAZON coordinate system")
+                    clippings_status = "with MyClippings.txt" if clippings_file else "without MyClippings.txt"
+                    self._log_message(f"✅ Extracted {len(file_annotations)} annotations from {krds_file.name} with AMAZON coordinate system ({clippings_status})")
                 except Exception as e:
-                    self._log_message(f"❌ Error parsing {json_file.name}: {e}")
+                    self._log_message(f"❌ Error parsing {krds_file.name}: {e}")
             
             self._log_message(f"📊 Total annotations with AMAZON coordinate system: {len(annotations)}")
             
@@ -344,7 +344,7 @@ class KindlePDFAnnotatorGUI:
                 
                 self._log_message(f"📈 Page distribution: {unique_pages} unique pages")
                 if unique_pages > 1:
-                    self._log_message(f"✅ SUCCESS: Annotations spread across multiple pages (not all on page 0)")
+                    self._log_message("✅ SUCCESS: Annotations spread across multiple pages (not all on page 0)")
                     sample_pages = sorted(page_distribution.keys())[:5]
                     self._log_message(f"   Sample pages: {sample_pages}")
                 else:
@@ -356,7 +356,7 @@ class KindlePDFAnnotatorGUI:
                 if page_0_count > 0:
                     self._log_message(f"❌ ERROR: {page_0_count}/{len(annotations)} annotations incorrectly on page 0")
                 else:
-                    self._log_message(f"✅ SUCCESS: No annotations incorrectly placed on page 0")
+                    self._log_message("✅ SUCCESS: No annotations incorrectly placed on page 0")
                     
             # Store annotations for later use
             self.annotations = annotations
@@ -431,6 +431,53 @@ class KindlePDFAnnotatorGUI:
         self.progress_bar.stop()
         self.progress_var.set("Ready")
     
+    def _normalize_token(self, value: str) -> str:
+        """Normalize file names/titles for matching"""
+        return re.sub(r"[^a-z0-9]+", "", value.lower())
+
+    def _find_relevant_krds_files(self, kindle_path: Path, pdf_path: Path) -> List[Path]:
+        """Locate KRDS files that correspond to the selected PDF"""
+        candidates: List[Path] = []
+        seen: set[Path] = set()
+
+        def add_file(path: Path) -> None:
+            if path.exists() and path not in seen:
+                candidates.append(path)
+                seen.add(path)
+
+        def add_from_folder(folder: Path) -> None:
+            if not folder.exists() or not folder.is_dir():
+                return
+            for pattern in ("*.pds", "*.pdt"):
+                for file_path in sorted(folder.glob(pattern)):
+                    add_file(file_path)
+
+        pdf_filename = pdf_path.name
+        normalized_pdf_name = self._normalize_token(pdf_filename)
+        normalized_pdf_stem = self._normalize_token(pdf_path.stem)
+
+        # 1. Check for sibling .sdr folder or matching KRDS files next to the PDF
+        add_from_folder(pdf_path.parent / f"{pdf_filename}.sdr")
+        for suffix in (".pds", ".pdt"):
+            add_file(pdf_path.with_suffix(suffix))
+
+        # 2. Search Kindle folder for matching .sdr directories
+        for sdr_dir in kindle_path.glob("*.sdr"):
+            base_name = sdr_dir.name[:-4]  # strip .sdr
+            normalized_base = self._normalize_token(base_name)
+            if normalized_base in (normalized_pdf_name, normalized_pdf_stem):
+                add_from_folder(sdr_dir)
+                break
+
+        # 3. Fallback: search entire Kindle folder for matching KRDS files
+        if not candidates:
+            for pattern in ("*.pds", "*.pdt"):
+                for krds_file in kindle_path.rglob(pattern):
+                    if self._normalize_token(krds_file.stem) in (normalized_pdf_name, normalized_pdf_stem):
+                        add_file(krds_file)
+
+        return candidates
+
     def _title_matches(self, title1: str, title2: str) -> bool:
         """Check if two titles match (fuzzy matching)"""
         t1 = title1.lower().replace(' ', '').replace('-', '').replace('_', '')
