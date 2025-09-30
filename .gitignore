@@ -75,12 +75,14 @@ Thumbs.db
 *.png
 *.jpg
 *.jpeg
+!screenshot.png
 !examples/**/*.pdf
 !tests/**/*.pdf
 CLI_OUTPUT_TEST*.pdf
 CLI_ANNOTATIONS.json
 GUI_PIPELINE_annotated*.pdf
 FINAL_annotated*.pdf
+tests/*_annotated.pdf
 
 # Temporary files
 *.tmp
