@@ -1,0 +1,354 @@
+[
+  {
+    "index": 0,
+    "type": "highlight",
+    "page_number": 0,
+    "content_preview": "",
+    "kindle_coordinates": {
+      "kindle_x": 116,
+      "kindle_y": 429,
+      "kindle_x_inches": 1.16,
+      "kindle_y_inches": 4.29,
+      "pdf_x": 205.04,
+      "pdf_y": 158.83000000000004
+    },
+    "pdf_fields": {
+      "pdf_x": 205.04,
+      "pdf_y": 158.83000000000004,
+      "pdf_width": 43.5,
+      "pdf_height": 24.0
+    },
+    "segment_rects_count": 2,
+    "quads": [
+      {
+        "rect": [
+          205.04,
+          158.83000000000004,
+          248.54,
+          182.83000000000004
+        ],
+        "w": 43.5,
+        "h": 24.0
+      }
+    ]
+  },
+  {
+    "index": 1,
+    "type": "highlight",
+    "page_number": 0,
+    "content_preview": "",
+    "kindle_coordinates": {
+      "kindle_x": 284,
+      "kindle_y": 231,
+      "kindle_x_inches": 2.84,
+      "kindle_y_inches": 2.31,
+      "pdf_x": 326.0,
+      "pdf_y": 301.39
+    },
+    "pdf_fields": {
+      "pdf_x": 326.0,
+      "pdf_y": 301.39,
+      "pdf_width": 69.0,
+      "pdf_height": 42.0
+    },
+    "segment_rects_count": 0,
+    "quads": [
+      {
+        "rect": [
+          326.0,
+          301.39,
+          395.0,
+          343.39
+        ],
+        "w": 69.0,
+        "h": 42.0
+      }
+    ]
+  },
+  {
+    "index": 2,
+    "type": "highlight",
+    "page_number": 1,
+    "content_preview": "",
+    "kindle_coordinates": {
+      "kindle_x": 446,
+      "kindle_y": 850,
+      "kindle_x_inches": 4.46,
+      "kindle_y_inches": 8.5,
+      "pdf_x": 442.64,
+      "pdf_y": 0.0
+    },
+    "pdf_fields": {
+      "pdf_x": 442.64,
+      "pdf_y": 0.0,
+      "pdf_width": 40.5,
+      "pdf_height": 24.0
+    },
+    "segment_rects_count": 2,
+    "quads": [
+      {
+        "rect": [
+          442.64,
+          0.0,
+          483.14,
+          24.0
+        ],
+        "w": 40.5,
+        "h": 24.0
+      }
+    ]
+  },
+  {
+    "index": 3,
+    "type": "bookmark",
+    "page_number": 2,
+    "content_preview": "",
+    "kindle_coordinates": {
+      "kindle_x": 0,
+      "kindle_y": 0,
+      "kindle_x_inches": 0.0,
+      "kindle_y_inches": 0.0,
+      "pdf_x": 0.0,
+      "pdf_y": 0.0
+    },
+    "pdf_fields": {
+      "pdf_x": 0.0,
+      "pdf_y": 0.0,
+      "pdf_width": 0.0,
+      "pdf_height": 0.0
+    },
+    "segment_rects_count": 0,
+    "quads": null
+  },
+  {
+    "index": 4,
+    "type": "highlight",
+    "page_number": 2,
+    "content_preview": "",
+    "kindle_coordinates": {
+      "kindle_x": 495,
+      "kindle_y": 629,
+      "kindle_x_inches": 4.95,
+      "kindle_y_inches": 6.29,
+      "pdf_x": 477.92,
+      "pdf_y": 14.830000000000041
+    },
+    "pdf_fields": {
+      "pdf_x": 477.92,
+      "pdf_y": 14.830000000000041,
+      "pdf_width": 97.5,
+      "pdf_height": 32.0
+    },
+    "segment_rects_count": 0,
+    "quads": [
+      {
+        "rect": [
+          477.92,
+          14.830000000000041,
+          575.4200000000001,
+          46.83000000000004
+        ],
+        "w": 97.50000000000006,
+        "h": 32.0
+      }
+    ]
+  },
+  {
+    "index": 5,
+    "type": "note",
+    "page_number": 2,
+    "content_preview": "A note attached to a single word",
+    "kindle_coordinates": {
+      "kindle_x": 495,
+      "kindle_y": 629,
+      "kindle_x_inches": 4.95,
+      "kindle_y_inches": 6.29,
+      "pdf_x": 477.92,
+      "pdf_y": 14.830000000000041
+    },
+    "pdf_fields": {
+      "pdf_x": 477.92,
+      "pdf_y": 14.830000000000041,
+      "pdf_width": 97.5,
+      "pdf_height": 32.0
+    },
+    "segment_rects_count": 0,
+    "quads": null
+  },
+  {
+    "index": 6,
+    "type": "highlight",
+    "page_number": 3,
+    "content_preview": "",
+    "kindle_coordinates": {
+      "kindle_x": 570,
+      "kindle_y": 725,
+      "kindle_x_inches": 5.7,
+      "kindle_y_inches": 7.25,
+      "pdf_x": 531.9200000000001,
+      "pdf_y": 0.0
+    },
+    "pdf_fields": {
+      "pdf_x": 531.9200000000001,
+      "pdf_y": 0.0,
+      "pdf_width": 40.5,
+      "pdf_height": 32.0
+    },
+    "segment_rects_count": 2,
+    "quads": [
+      {
+        "rect": [
+          531.9200000000001,
+          0.0,
+          572.4200000000001,
+          32.0
+        ],
+        "w": 40.5,
+        "h": 32.0
+      }
+    ]
+  },
+  {
+    "index": 7,
+    "type": "highlight",
+    "page_number": 3,
+    "content_preview": "",
+    "kindle_coordinates": {
+      "kindle_x": 477,
+      "kindle_y": 806,
+      "kindle_x_inches": 4.77,
+      "kindle_y_inches": 8.06,
+      "pdf_x": 464.9599999999999,
+      "pdf_y": 0.0
+    },
+    "pdf_fields": {
+      "pdf_x": 464.9599999999999,
+      "pdf_y": 0.0,
+      "pdf_width": 63.0,
+      "pdf_height": 24.0
+    },
+    "segment_rects_count": 0,
+    "quads": [
+      {
+        "rect": [
+          464.9599999999999,
+          0.0,
+          527.9599999999999,
+          24.0
+        ],
+        "w": 63.0,
+        "h": 24.0
+      }
+    ]
+  },
+  {
+    "index": 8,
+    "type": "note",
+    "page_number": 3,
+    "content_preview": "Note for a paragraph and one word more",
+    "kindle_coordinates": {
+      "kindle_x": 446,
+      "kindle_y": 666,
+      "kindle_x_inches": 4.46,
+      "kindle_y_inches": 6.66,
+      "pdf_x": 442.64,
+      "pdf_y": 0.0
+    },
+    "pdf_fields": {
+      "pdf_x": 442.64,
+      "pdf_y": 0.0,
+      "pdf_width": 37.5,
+      "pdf_height": 24.0
+    },
+    "segment_rects_count": 0,
+    "quads": null
+  },
+  {
+    "index": 9,
+    "type": "highlight",
+    "page_number": 3,
+    "content_preview": "",
+    "kindle_coordinates": {
+      "kindle_x": 446,
+      "kindle_y": 565,
+      "kindle_x_inches": 4.46,
+      "kindle_y_inches": 5.65,
+      "pdf_x": 442.64,
+      "pdf_y": 60.910000000000025
+    },
+    "pdf_fields": {
+      "pdf_x": 442.64,
+      "pdf_y": 60.910000000000025,
+      "pdf_width": 33.0,
+      "pdf_height": 24.0
+    },
+    "segment_rects_count": 2,
+    "quads": [
+      {
+        "rect": [
+          442.64,
+          60.910000000000025,
+          475.64,
+          84.91000000000003
+        ],
+        "w": 33.0,
+        "h": 24.0
+      }
+    ]
+  },
+  {
+    "index": 10,
+    "type": "bookmark",
+    "page_number": 4,
+    "content_preview": "",
+    "kindle_coordinates": {
+      "kindle_x": 0,
+      "kindle_y": 0,
+      "kindle_x_inches": 0.0,
+      "kindle_y_inches": 0.0,
+      "pdf_x": 0.0,
+      "pdf_y": 0.0
+    },
+    "pdf_fields": {
+      "pdf_x": 0.0,
+      "pdf_y": 0.0,
+      "pdf_width": 0.0,
+      "pdf_height": 0.0
+    },
+    "segment_rects_count": 0,
+    "quads": null
+  },
+  {
+    "index": 11,
+    "type": "highlight",
+    "page_number": 5,
+    "content_preview": "",
+    "kindle_coordinates": {
+      "kindle_x": 590,
+      "kindle_y": 709,
+      "kindle_x_inches": 5.9,
+      "kindle_y_inches": 7.09,
+      "pdf_x": 546.3199999999999,
+      "pdf_y": 0.0
+    },
+    "pdf_fields": {
+      "pdf_x": 546.3199999999999,
+      "pdf_y": 0.0,
+      "pdf_width": 31.5,
+      "pdf_height": 32.0
+    },
+    "segment_rects_count": 2,
+    "quads": [
+      {
+        "rect": [
+          546.3199999999999,
+          0.0,
+          577.8199999999999,
+          32.0
+        ],
+        "w": 31.5,
+        "h": 32.0
+      }
+    ]
+  }
+]

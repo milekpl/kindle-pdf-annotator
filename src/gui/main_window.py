@@ -354,9 +354,9 @@ class KindlePDFAnnotatorGUI:
                         self._log_message(f"ℹ️  Single annotation on page {list(page_distribution.keys())[0]}")
                 
                 if page_0_count > 0:
-                    self._log_message(f"❌ ERROR: {page_0_count}/{len(annotations)} annotations incorrectly on page 0")
+                    self._log_message(f"ℹ️  INFO: {page_0_count}/{len(annotations)} annotations on page 0 (valid for title/cover pages)")
                 else:
-                    self._log_message("✅ SUCCESS: No annotations incorrectly placed on page 0")
+                    self._log_message("ℹ️  INFO: No annotations on page 0")
                     
             # Store annotations for later use
             self.annotations = annotations

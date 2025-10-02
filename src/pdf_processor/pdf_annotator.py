@@ -11,6 +11,12 @@ import re
 import os
 from collections import defaultdict
 
+# Import column-aware highlighting
+try:
+    from .column_aware_highlighting import ColumnDetector
+except ImportError:
+    from column_aware_highlighting import ColumnDetector
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,8 +25,9 @@ class PDFAnnotator:
     
     def __init__(self, pdf_path: str):
         self.pdf_path = Path(pdf_path)
-        self.doc = None
+        self.doc: Optional[fitz.Document] = None
         self.annotations = []
+        self.column_detector = None
         
     def open_pdf(self) -> bool:
         """
@@ -31,6 +38,8 @@ class PDFAnnotator:
         """
         try:
             self.doc = fitz.open(str(self.pdf_path))
+            # Initialize column detector with the PDF document
+            self.column_detector = ColumnDetector(self.doc)
             return True
         except Exception as e:
             logger.error(f"Error opening PDF {self.pdf_path}: {e}")
@@ -56,6 +65,19 @@ class PDFAnnotator:
             logger.error("PDF document not opened")
             return 0
         
+        # DEBUG: Check what annotations are received
+        print(f"\n🎯 PDF ANNOTATOR received {len(annotations)} annotations:")
+        title_found = False
+        for i, ann in enumerate(annotations):
+            pdf_width = ann.get('pdf_width', 0)
+            if abs(pdf_width - 184.2) < 0.1:  # Title annotation
+                title_found = True
+                print(f"   ✅ [{i}] Title annotation: pdf_width={pdf_width}")
+            else:
+                print(f"   [{i}] Annotation: pdf_width={pdf_width}")
+        if not title_found:
+            print(f"   ❌ Title annotation (pdf_width=184.2) NOT found!")
+        
         added_count = 0
         for annotation in annotations:
             try:
@@ -64,6 +86,10 @@ class PDFAnnotator:
             except Exception as e:
                 logger.warning(f"Failed to add annotation: {e}")
                 continue
+        
+        print(f"\n✅ PDF ANNOTATOR SUMMARY:")
+        print(f"   Total annotations processed: {len(annotations)}")
+        print(f"   Total annotations successfully added: {added_count}")
         
         return added_count
     
@@ -79,18 +105,27 @@ class PDFAnnotator:
         """
         content = annotation.get("content", "")
         page_num = annotation.get("page_number")
+        
+        # Handle missing page_number by checking alternative fields
+        if page_num is None:
+            page_num = annotation.get("pdf_page_0based")
+        if page_num is None:
+            page_num = annotation.get("json_page_0based")
+        
         annotation_type = annotation.get("type", "highlight").lower()
         
         if page_num is None or page_num < 0 or page_num >= len(self.doc):
             logger.warning(f"Invalid page number: {page_num}")
             return False
-        
+
         page = self.doc[page_num]
         
         if annotation_type == "highlight":
             return self._add_highlight_annotation(page, content, annotation)
         elif annotation_type == "note":
             return self._add_note_annotation(page, content, annotation)
+        elif annotation_type == "bookmark":
+            return self._add_bookmark_annotation(page, annotation)
         
         # Placeholder for other annotation types
         logger.warning(f"Unsupported annotation type: {annotation_type}")
@@ -101,16 +136,42 @@ class PDFAnnotator:
         try:
             quads = self._build_highlight_quads(page, annotation)
 
+            # DEBUG: Check if this is the title annotation
+            pdf_width = annotation.get('pdf_width', 0)
+            if abs(pdf_width - 184.2) < 0.1:
+                print(f"\n🎯 TITLE ANNOTATION DEBUG:")
+                print(f"   Quads built: {quads is not None}")
+                if quads:
+                    print(f"   Number of quads: {len(quads)}")
+                    for i, quad in enumerate(quads):
+                        print(f"   Quad {i}: {quad}")
+                        print(f"   Quad valid: {quad.is_valid}")
+                        print(f"   Quad area: {quad.get_area()}")
+
             if quads:
                 highlight = page.add_highlight_annot(quads)
                 highlight.set_info(title="Kindle Highlight", content=content)
                 highlight.set_colors(stroke=[1, 1, 0])  # Yellow
                 highlight.update()
+                
+                # DEBUG: Check if title annotation was successfully added
+                if abs(pdf_width - 184.2) < 0.1:
+                    print(f"   ✅ Title highlight annotation added successfully!")
+                
                 return True
             else:
+                # DEBUG: Check if this is the title annotation failing
+                if abs(pdf_width - 184.2) < 0.1:
+                    print(f"   ❌ Title annotation FAILED - no quads built!")
+                
                 logger.warning(f"Could not build quads for annotation on page {page.number}")
                 return False
         except Exception as e:
+            # DEBUG: Check if title annotation threw exception
+            pdf_width = annotation.get('pdf_width', 0)
+            if abs(pdf_width - 184.2) < 0.1:
+                print(f"   ❌ Title annotation EXCEPTION: {e}")
+            
             logger.error(f"Error adding highlight on page {page.number}: {e}")
             return False
 
@@ -133,42 +194,107 @@ class PDFAnnotator:
             logger.error(f"Error adding note on page {page.number}: {e}")
             return False
 
+    def _add_bookmark_annotation(self, page: fitz.Page, annotation: Dict[str, Any]) -> bool:
+        """Add a real PDF bookmark (outline entry) for navigation"""
+        try:
+            if self.doc is None:
+                logger.error("PDF document is not open")
+                return False
+                
+            # Get page number for bookmark
+            page_num = annotation.get("page_number")
+            if page_num is None:
+                page_num = getattr(page, 'number', 0)
+            
+            # Ensure page_num is an integer
+            try:
+                page_num = int(page_num) if page_num is not None else 0
+            except (ValueError, TypeError):
+                page_num = 0
+            
+            # Create bookmark title from timestamp or default
+            timestamp = annotation.get("timestamp", "")
+            if timestamp:
+                # Format timestamp for bookmark title
+                import datetime
+                try:
+                    dt = datetime.datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                    formatted_time = dt.strftime("%Y-%m-%d %H:%M")
+                    bookmark_title = f"Kindle Bookmark ({formatted_time})"
+                except Exception:
+                    bookmark_title = "Kindle Bookmark"
+            else:
+                bookmark_title = "Kindle Bookmark"
+            
+            # Create the bookmark entry in the PDF outline
+            # Get current table of contents (list of [level, title, page] entries)
+            toc = getattr(self.doc, 'get_toc', lambda: [])()
+            
+            # Add new bookmark entry: [level, title, page_number]
+            new_bookmark = [1, bookmark_title, page_num + 1]  # Page numbers are 1-based in TOC
+            toc.append(new_bookmark)
+            
+            # Set the updated table of contents
+            set_toc_method = getattr(self.doc, 'set_toc', None)
+            if set_toc_method:
+                set_toc_method(toc)
+                logger.info(f"Added PDF bookmark '{bookmark_title}' for page {page_num + 1}")
+                return True
+            else:
+                logger.error("Document does not support table of contents")
+                return False
+            
+        except Exception as e:
+            page_no = getattr(page, 'number', 'unknown')
+            logger.error(f"Error adding bookmark on page {page_no}: {e}")
+            return False
+
     def _build_highlight_quads(self, page: fitz.Page, annotation: Dict[str, Any]) -> Optional[List[fitz.Rect]]:
         """Build a set of rectangles that track each highlighted line using simple margin-based approach"""
         content = (annotation.get("content") or "").strip()
         
-        # First: check if we have pre-computed segment_rects (highest priority)
-        segment_rects = annotation.get("segment_rects")
+        # DEBUG: Check if this is the title annotation
+        pdf_width = annotation.get("pdf_width", 0.0)
+        if abs(pdf_width - 184.2) < 0.1:  # Title annotation
+            print(f"\n🎯 PDF ANNOTATOR DEBUG (Title):")
+            print(f"   pdf_width: {pdf_width}")
+            print(f"   pdf_height: {annotation.get('pdf_height', 0.0)}")
+            print(f"   pdf_x: {annotation.get('pdf_x', 0)}")
+            print(f"   pdf_y: {annotation.get('pdf_y', 0)}")
+        
+        # PRIORITY 0: If we have pre-converted PDF coordinates (from amazon_coordinate_system), use them directly.
+        pdf_width = annotation.get("pdf_width", 0.0)
+        pdf_height = annotation.get("pdf_height", 0.0)
+
+        if abs(pdf_width) >= 0.01 and abs(pdf_height) >= 0.01:
+            pdf_x = annotation.get("pdf_x", 0)
+            pdf_y = annotation.get("pdf_y", 0)
+            
+            # For single-line highlights, create simple rectangle from pre-converted coordinates
+            rect = fitz.Rect(pdf_x, pdf_y, pdf_x + pdf_width, pdf_y + pdf_height)
+            
+            # DEBUG: Check if title annotation is being created properly
+            if abs(pdf_width - 184.2) < 0.1:  # Title annotation
+                print(f"   ✅ Direct creation - Rectangle: {rect}")
+                print(f"   ✅ Direct creation - Width: {rect.width:.1f}pt")
+            
+            return [rect]
+        
+        # Check if segment_rects are provided (for multi-line highlights)
+        segment_rects = annotation.get("segment_rects", None)
         if segment_rects:
-            return [fitz.Rect(rect) for rect in segment_rects]
+            # For multi-line highlights with pre-calculated segments, return them directly
+            if abs(pdf_width - 184.2) < 0.1:  # Title annotation
+                print(f"   ✅ Using segment_rects - Count: {len(segment_rects)}")
+                for i, seg_rect in enumerate(segment_rects):
+                    print(f"   Segment {i}: {seg_rect} (w={seg_rect.width:.1f}pt)")
+            return segment_rects
         
         # Second: ALWAYS try margin-based approach first (most reliable for Kindle)
         # This should work for any annotation with any coordinate information
         margin_quads = self._build_quads_from_margins(page, annotation)
         if margin_quads:
             return margin_quads
-        
-        # If margin-based fails, log why and try to force it with content-based estimation
-        logger.debug("Margin-based highlighting failed, attempting content-based fallback")
-        
-        # Try to create margin-based highlighting using content to estimate positions
-        if content:
-            # Get page margins
-            page_margins = self._get_page_text_margins(page)
-            if page_margins:
-                # Create a simple 2-line highlight as fallback
-                line_height = 14
-                y_start = page_margins.get('top', 100)
-                
-                # Simple 2-line highlight pattern
-                quads = []
-                for i in range(2):
-                    y = y_start + (i * line_height)
-                    x0 = page_margins['left'] if i > 0 else page_margins['left'] + 50  # Slight indent for first line
-                    x1 = page_margins['right'] if i < 1 else page_margins['right'] - 50  # Slight reduction for last line
-                    rect = fitz.Rect(x0, y, x1, y + line_height)
-                    quads.append(rect)
-                return quads
         
         # Final fallback: attempt to build quads from start/end positions if provided
         pos_quads = self._build_quads_from_positions(
@@ -188,20 +314,36 @@ class PDFAnnotator:
         start_pos = None
         end_pos = None
         
-        # First priority: Use pdf_x, pdf_y if available (already in PDF coordinates)
-        if "pdf_x" in annotation and "pdf_y" in annotation:
+        # First priority: Use coordinates field if available (most reliable)
+        # coordinates = [x0, y0, x1, y1] where (x0,y0) is start and (x1,y1) is end
+        coordinates = annotation.get("coordinates")
+        if coordinates and len(coordinates) >= 4:
+            x0, y0, x1, y1 = coordinates[:4]
+            start_pos = (x0, y0)
+            end_pos = (x1, y1)
+        # Second priority: Use pdf_x, pdf_y if available (already in PDF coordinates)
+        elif "pdf_x" in annotation and "pdf_y" in annotation:
             start_pos = (annotation["pdf_x"], annotation["pdf_y"])
-            # For end position, ALWAYS try to extract from end_position string first
-            parsed_end = self._parse_position_xy(annotation.get("end_position"))
-            if parsed_end:
-                end_pos = parsed_end
-            elif "coordinates" in annotation and len(annotation["coordinates"]) >= 4:
-                # Use coordinates if we have 4+ values [x0, y0, x1, y1]
-                end_pos = (annotation["coordinates"][2], annotation["coordinates"][3])
+            
+            # Check if we have pre-converted PDF dimensions (pdf_width, pdf_height)
+            pdf_width = annotation.get("pdf_width", 0.0)
+            pdf_height = annotation.get("pdf_height", 0.0)
+            
+            if abs(pdf_width) >= 0.01 and abs(pdf_height) >= 0.01:
+                # Use pre-converted dimensions - calculate end position directly
+                # For highlights, the end position is at (start_x + width, start_y)
+                # NOT (start_x + width, start_y + height) which would be the bottom-right corner
+                end_x = annotation["pdf_x"] + pdf_width
+                end_y = annotation["pdf_y"]  # Same Y for single-line, will be adjusted if multi-line
+                end_pos = (end_x, end_y)
             else:
-                # Only as last resort: estimate end position
-                # This should NOT happen if we have proper start_position/end_position strings
-                end_pos = (annotation["pdf_x"] - 50, annotation["pdf_y"] + 48)  # 3 lines down, left margin
+                # No pre-converted dimensions - try to parse end_position string
+                parsed_end = self._parse_position_xy(annotation.get("end_position"))
+                if parsed_end:
+                    end_pos = parsed_end
+                else:
+                    # Estimate end position as fallback
+                    end_pos = (annotation["pdf_x"] - 50, annotation["pdf_y"] + 48)  # 3 lines down, left margin
         
         # Second priority: Parse start_position and end_position strings
         if not start_pos or not end_pos:
@@ -233,7 +375,28 @@ class PDFAnnotator:
         sx, sy = start_pos
         ex, ey = end_pos
         
-        # Calculate page text margins by examining some text
+        # DEBUG: Check title highlight coordinates
+        content = annotation.get("content", "")
+        if "Fixation of Belief" in content:
+            print(f"\n🔍 DEBUG pdf_annotator._build_quads_from_margins (Title):")
+            print(f"   content: {content[:50]}")
+            print(f"   start_pos: ({sx}, {sy})")
+            print(f"   end_pos: ({ex}, {ey})")
+            print(f"   coordinates from annotation: {annotation.get('coordinates')}")
+        
+        # Get column constraints for this annotation
+        column_margins = None
+        if self.column_detector:
+            column = self.column_detector.get_column_for_position(page.number, sx, sy)
+            if column:
+                column_margins = {
+                    'left': column['left'],
+                    'right': column['right'],
+                    'top': column['top'],
+                    'bottom': column['bottom']
+                }
+        
+        # Calculate page text margins by examining some text (fallback if no column detection)
         page_margins = self._get_page_text_margins(page)
         if not page_margins:
             # Fallback to reasonable defaults
@@ -243,6 +406,9 @@ class PDFAnnotator:
                 'top': 50,
                 'bottom': page.rect.height - 50
             }
+        
+        # Use column margins if available, otherwise fall back to page margins
+        effective_margins = column_margins if column_margins else page_margins
         
         # Use the exact line height from test data (16 pixels between lines in the test)
         line_height = 16  # Matches the test line spacing
@@ -261,23 +427,23 @@ class PDFAnnotator:
             current_y = y_top + (line_index * line_height)
             line_bottom = current_y + line_height
             
-            # Determine X coordinates based on Kindle snake pattern
+            # Determine X coordinates based on Kindle snake pattern with column constraints
             if estimated_lines == 1:
                 # Single line: use exact start to end positions
                 x0, x1 = sx, ex
             elif line_index == 0:
-                # First line: start at start position, extend to right margin
+                # First line: start at start position, extend to right margin of column
                 x0 = sx
-                x1 = page_margins['right']
+                x1 = effective_margins['right']
             elif line_index == estimated_lines - 1:
-                # Last line: start at left margin, end at end position  
-                x0 = page_margins['left']
+                # Last line: start at left margin of column, end at end position  
+                x0 = effective_margins['left']
                 x1 = ex
             else:
-                # Middle lines: ALWAYS span full width from left to right margin
-                # This is the core of the snake pattern - ignore word positions entirely
-                x0 = page_margins['left']
-                x1 = page_margins['right']
+                # Middle lines: span full width of column (not entire page)
+                # This is the core of the column-aware snake pattern
+                x0 = effective_margins['left']
+                x1 = effective_margins['right']
             
             # Create rectangle for this line (ensure valid rectangle)
             if x1 > x0:  # Ensure non-degenerate rectangle

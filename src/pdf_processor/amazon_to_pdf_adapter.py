@@ -6,7 +6,7 @@ Converts Amazon coordinate system annotations to the format expected by pdf_anno
 from typing import List, Dict, Any, Optional
 import fitz
 
-from kindle_parser.amazon_coordinate_system import convert_kindle_to_pdf_coordinates
+from kindle_parser.amazon_coordinate_system import convert_kindle_to_pdf_coordinates, convert_kindle_width_to_pdf, convert_kindle_height_to_pdf
 
 
 def convert_amazon_to_pdf_annotator_format(amazon_annotations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -28,21 +28,41 @@ def convert_amazon_to_pdf_annotator_format(amazon_annotations: List[Dict[str, An
         pdf_y = ann.get('pdf_y', 0)
         page_number = ann.get('pdf_page_0based', 0)
         
-        # Skip empty annotations, but NOT for highlights (they don't need content)
-        if not content and ann_type != 'highlight':
+        # DEBUG: Check if this is the title
+        if ann.get('kindle_width') == 46:
+            print(f"🔍 DEBUG Processing title in adapter:")
+            print(f"   content: '{content}'")
+            print(f"   ann_type: {ann_type}")
+            print(f"   Empty content check: not content = {not content}")
+            print(f"   Skip condition: {not content and ann_type not in ['highlight', 'bookmark']}")
+        
+        # Skip empty annotations, but NOT for highlights or bookmarks (they don't need content)
+        if not content and ann_type not in ['highlight', 'bookmark']:
+            if ann.get('kindle_width') == 46:
+                print(f"   >>> TITLE SKIPPED HERE!")
             continue
             
         # Create proper coordinates based on annotation type
         if ann_type == 'highlight':
-            # Build a PDF rectangle using Kindle geometry for the full span
-            kindle_x = float(ann.get('kindle_x', 0.0))
-            kindle_y = float(ann.get('kindle_y', 0.0))
-            kindle_width = float(ann.get('kindle_width', 0.0))
-            kindle_height = float(ann.get('kindle_height', 0.0))
-
+            # Use the already-converted PDF coordinates from amazon_coordinate_system
+            # DO NOT re-convert Kindle coordinates to avoid double-scaling!
+            
+            # Set up PDF rect for multi-line highlight processing
             pdf_rect_width = float(ann.get('pdf_rect_width', 595.3))
             pdf_rect_height = float(ann.get('pdf_rect_height', 841.9))
             pdf_rect = fitz.Rect(0, 0, pdf_rect_width, pdf_rect_height)
+            
+            # Get pre-converted PDF coordinates and dimensions
+            pdf_width = ann.get('pdf_width', 0.0)
+            pdf_height = ann.get('pdf_height', 0.0)
+            
+            # Fall back to manual conversion only if PDF dimensions not available
+            if abs(pdf_width) < 0.01 or abs(pdf_height) < 0.01:
+                kindle_width = float(ann.get('kindle_width', 0.0))
+                kindle_height = float(ann.get('kindle_height', 0.0))
+                
+                pdf_width = convert_kindle_width_to_pdf(kindle_width, pdf_rect)
+                pdf_height = convert_kindle_height_to_pdf(kindle_height)
 
             # Initial right/bottom edges based on start segment
             right_candidates: List[float] = []
@@ -52,70 +72,92 @@ def convert_amazon_to_pdf_annotator_format(amazon_annotations: List[Dict[str, An
             # Track individual segment rectangles for downstream multi-line handling
             segment_rects: List[fitz.Rect] = []
 
-            # Base rectangle derived from the start position
-            right_from_width, _ = convert_kindle_to_pdf_coordinates(kindle_x + kindle_width, kindle_y, pdf_rect)
-            _, bottom_from_height = convert_kindle_to_pdf_coordinates(kindle_x, kindle_y + kindle_height, pdf_rect)
-            start_rect = fitz.Rect(pdf_x, pdf_y, right_from_width, bottom_from_height)
+            # Base rectangle using pre-converted coordinates
+            start_rect = fitz.Rect(pdf_x, pdf_y, pdf_x + pdf_width, pdf_y + pdf_height)
 
-            segment_rects.append(start_rect)
+            # DON'T add start_rect to segment_rects yet - wait to see if it's single-line or multi-line
 
-            right_candidates.append(right_from_width)
-            bottom_candidates.append(bottom_from_height)
+            right_candidates.append(pdf_x + pdf_width)
+            bottom_candidates.append(pdf_y + pdf_height)
             start_line_height = max(0.1, start_rect.height)
             end_line_height: Optional[float] = None
 
+            # DEBUG: Check what values we're getting for first highlight
+            if ann.get('type') == 'highlight' and ann.get('kindle_width') == 46:  # Title highlight
+                print(f"🔍 DEBUG Title annotation in adapter:")
+                print(f"   pdf_width from ann: {pdf_width} (type: {type(pdf_width)})")
+                print(f"   pdf_height from ann: {pdf_height} (type: {type(pdf_height)})")
+                print(f"   start_rect: {start_rect}")
+                print(f"   segment_rects count: {len(segment_rects)}")
+                for i, rect in enumerate(segment_rects):
+                    print(f"   segment_rects[{i}]: {rect}")
+
+
             # Use start/end position strings for multi-word / multi-line spans
+            # CRITICAL: Only use pre-converted coordinates for single-line highlights
+            # Multi-line highlights need segment rectangles to be computed
             start_pos = ann.get('start_position')
             end_pos = ann.get('end_position')
-
+            is_single_line = True  # Assume single line initially
+            
             if start_pos and end_pos and start_pos != end_pos:
                 start_parts = start_pos.split()
                 end_parts = end_pos.split()
 
                 if len(start_parts) >= 8 and len(end_parts) >= 8:
-                    end_x = float(end_parts[4])
-                    end_y = float(end_parts[5])
-                    end_width = float(end_parts[6])
-                    end_height = float(end_parts[7])
+                    start_y_kindle = float(start_parts[5])
+                    end_y_kindle = float(end_parts[5])
+                    
+                    # Check if this is actually a single-line highlight
+                    # If Y coordinates are the same, it's single-line - don't process end
+                    if abs(end_y_kindle - start_y_kindle) <= 10:  # Same line (within 10 Kindle units)
+                        is_single_line = True
+                        # DON'T continue here - we still need to create the annotation!
+                    else:
+                        # Multi-line highlight - process end position
+                        is_single_line = False
+                        
+                        # Add start_rect for multi-line highlights
+                        segment_rects.append(start_rect)
+                            
+                        end_x = float(end_parts[4])
+                        end_y = float(end_parts[5])
+                        end_width = float(end_parts[6])
+                        end_height = float(end_parts[7])
 
-                    end_left_pdf, end_top_pdf = convert_kindle_to_pdf_coordinates(end_x, end_y, pdf_rect)
-                    top_candidates.append(end_top_pdf)
+                        # Need to convert from Kindle coordinates
+                        end_left_pdf, end_top_pdf = convert_kindle_to_pdf_coordinates(end_x, end_y, pdf_rect)
+                        top_candidates.append(end_top_pdf)
 
-                    end_right_pdf, _ = convert_kindle_to_pdf_coordinates(end_x + end_width, end_y, pdf_rect)
-                    right_candidates.append(end_right_pdf)
+                        end_pdf_width = convert_kindle_width_to_pdf(end_width, pdf_rect)
+                        end_pdf_height = convert_kindle_height_to_pdf(end_height)
+                        
+                        end_right_pdf = end_left_pdf + end_pdf_width
+                        end_bottom_pdf = end_top_pdf + end_pdf_height
+                        
+                        right_candidates.append(end_right_pdf)
+                        bottom_candidates.append(end_bottom_pdf)
 
-                    _, end_bottom_pdf = convert_kindle_to_pdf_coordinates(end_x, end_y + end_height, pdf_rect)
-                    bottom_candidates.append(end_bottom_pdf)
+                        end_rect = fitz.Rect(end_left_pdf, end_top_pdf, end_right_pdf, end_bottom_pdf)
 
-                    end_rect = fitz.Rect(end_left_pdf, end_top_pdf, end_right_pdf, end_bottom_pdf)
-                    end_line_height = max(0.1, end_rect.height)
-
-                    # Avoid duplicating identical segments (single line highlight)
-                    if any(abs(getattr(end_rect, attr) - getattr(start_rect, attr)) > 0.1
-                           for attr in ("x0", "y0", "x1", "y1")):
+                        # Always add end_rect for multi-line highlights
                         segment_rects.append(end_rect)
 
-                    # Estimate intermediate segments if vertical span indicates multi-line highlight
-                    vertical_span = end_rect.y0 - start_rect.y0
-                    if start_line_height > 0 and vertical_span > (start_line_height * 1.5):
-                        avg_line_height = (start_line_height + (end_line_height or start_line_height)) / 2
-                        num_total_lines_estimate = max(2, int(round(vertical_span / max(1.0, avg_line_height))) + 1)
-                        num_additional_lines = max(0, num_total_lines_estimate - 2)
-                        if num_additional_lines > 0:
-                            # Determine interior rectangle width: use union of start / end widths
-                            interior_left = min(start_rect.x0, end_rect.x0)
-                            interior_right = max(start_rect.x1, end_rect.x1)
-                            line_gap = vertical_span / (num_additional_lines + 1)
-                            line_height = avg_line_height
-                            for line_idx in range(num_additional_lines):
-                                top_offset = start_rect.y0 + line_gap * (line_idx + 1)
-                                intermediate_rect = fitz.Rect(
-                                    interior_left,
-                                    top_offset,
-                                    interior_right,
-                                    top_offset + line_height
-                                )
-                                segment_rects.append(intermediate_rect)
+                        # For multi-line highlights, DON'T compute intermediate segments
+                        # The PDF annotator will handle multi-line properly using start + end rects
+                        # Computing intermediates causes issues with two-column layouts
+
+            # DEBUG: Check multi-line highlight (#2 - "Few persons")
+            if ann.get('type') == 'highlight' and 'Few persons' in ann.get('content', ''):
+                print(f"\n🔍 DEBUG Multi-line annotation in adapter:")
+                print(f"   content: '{ann.get('content', '')[:50]}...'")
+                print(f"   pdf_width from ann: {pdf_width}")
+                print(f"   pdf_height from ann: {pdf_height}")
+                print(f"   start_rect: {start_rect}")
+                print(f"   is_single_line: {is_single_line}")
+                print(f"   segment_rects count: {len(segment_rects)}")
+                for i, rect in enumerate(segment_rects):
+                    print(f"   segment_rects[{i}]: {rect}")
 
             # Ensure segments are ordered from top to bottom for consistency
             segment_rects.sort(key=lambda r: r.y0)
@@ -144,6 +186,14 @@ def convert_amazon_to_pdf_annotator_format(amazon_annotations: List[Dict[str, An
                 pdf_x + 20,      # x1 - right (small note icon)
                 pdf_y + 20       # y1 - bottom (small note icon)
             ]
+        elif ann_type == 'bookmark':
+            # For bookmarks, create a small rectangle at the point (similar to notes)
+            coordinates = [
+                pdf_x,           # x0 - left
+                pdf_y,           # y0 - top
+                pdf_x + 18,      # x1 - right (bookmark icon)
+                pdf_y + 18       # y1 - bottom (bookmark icon)
+            ]
         else:
             # Default rectangle
             coordinates = [pdf_x, pdf_y, pdf_x + 100, pdf_y + 20]
@@ -162,6 +212,17 @@ def convert_amazon_to_pdf_annotator_format(amazon_annotations: List[Dict[str, An
             'start_position': ann.get('start_position'),
             'end_position': ann.get('end_position'),
             
+            # Pre-computed segment rectangles (for highlights only)
+            # For single-line highlights, DON'T pass segment_rects - let PDF annotator use pre-converted coords
+            # For multi-line highlights, pass segment_rects for proper multi-line handling
+            'segment_rects': segment_rects if (ann_type == 'highlight' and not is_single_line) else None,
+            
+            # Pre-converted PDF dimensions (pass through from amazon_coordinate_system)
+            'pdf_x': ann.get('pdf_x', 0),
+            'pdf_y': ann.get('pdf_y', 0),
+            'pdf_width': ann.get('pdf_width', 0.0),
+            'pdf_height': ann.get('pdf_height', 0.0),
+            
             # Improved coordinate system metadata (for debugging)
             'kindle_coordinates': {
                 'kindle_x': ann.get('kindle_x', 0),
@@ -174,6 +235,19 @@ def convert_amazon_to_pdf_annotator_format(amazon_annotations: List[Dict[str, An
         }
         
         converted_annotations.append(converted_ann)
+    
+    # DEBUG: Check if title annotation is in the final list
+    print(f"\n✅ ADAPTER CONVERSION COMPLETE:")
+    print(f"   Total annotations returned: {len(converted_annotations)}")
+    
+    title_found = False
+    for ann in converted_annotations:
+        if ann.get('pdf_width') == 184.2:
+            title_found = True
+            print(f"   ✅ Title annotation found in final list!")
+            break
+    if not title_found:
+        print(f"   ❌ Title annotation NOT found in final list!")
     
     return converted_annotations
 

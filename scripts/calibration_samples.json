@@ -1,0 +1,44 @@
+[
+  {
+    "dataset": "peirce-charles-fixation-belief",
+    "content": "The Fixation of Belief",
+    "pdf_page": 0,
+    "kindle_page": 0,
+    "kindle_x": 116.0,
+    "kindle_y": 429.0,
+    "kindle_width": 29.0,
+    "kindle_height": 12.0,
+    "pdf_x": 205.04302978515625,
+    "pdf_y": 158.83482360839844,
+    "pdf_width": 184.23138427734375,
+    "pdf_height": 27.564437866210938
+  },
+  {
+    "dataset": "peirce-charles-fixation-belief",
+    "content": "reasoning",
+    "pdf_page": 2,
+    "kindle_page": 2,
+    "kindle_x": 495.0,
+    "kindle_y": 629.0,
+    "kindle_width": 65.0,
+    "kindle_height": 16.0,
+    "pdf_x": 356.6519775390625,
+    "pdf_y": 448.9503173828125,
+    "pdf_width": 49.46978759765625,
+    "pdf_height": 15.947967529296875
+  },
+  {
+    "dataset": "peirce-charles-fixation-belief",
+    "content": "insure everlasting felicity",
+    "pdf_page": 3,
+    "kindle_page": 3,
+    "kindle_x": 477.0,
+    "kindle_y": 806.0,
+    "kindle_width": 42.0,
+    "kindle_height": 12.0,
+    "pdf_x": 343.7525634765625,
+    "pdf_y": 575.9744873046875,
+    "pdf_width": 126.01760864257812,
+    "pdf_height": 15.947998046875
+  }
+]

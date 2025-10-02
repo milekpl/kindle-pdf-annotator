@@ -71,7 +71,6 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
-*.pdf
 *.jpg
 *.jpeg
 !examples/**/*.pdf

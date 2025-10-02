@@ -23,8 +23,11 @@ class KindlePosition:
         self.raw = position_string
         self.parts = position_string.split() if position_string else []
 
-        # Parse position string: "page seq char_pos ? x y width height"
+        # Parse position string - handle both full and short formats
+        # Full format: "page seq char_pos ? x y width height" (8 parts for highlights/notes)
+        # Short format: "page ? ? ?" (4 parts for bookmarks)
         if len(self.parts) >= 8:
+            # Full position with coordinates
             try:
                 self.page = int(self.parts[0])
                 self.sequence = int(self.parts[1])
@@ -34,6 +37,23 @@ class KindlePosition:
                 self.y = int(self.parts[5])
                 self.width = int(self.parts[6])
                 self.height = int(self.parts[7])
+                self.valid = True
+            except (ValueError, IndexError):
+                self.valid = False
+                self._set_defaults()
+        elif len(self.parts) >= 4:
+            # Short position (typically bookmarks) - page info only
+            try:
+                self.page = int(self.parts[0])
+                self.sequence = int(self.parts[1]) if len(self.parts) > 1 else 0
+                self.char_pos = int(self.parts[2]) if len(self.parts) > 2 else 0
+                self.unknown = int(self.parts[3]) if len(self.parts) > 3 else 0
+                # No coordinate info for bookmarks
+                self.x = 0
+                self.y = 0
+                self.width = 0
+                self.height = 0
+                # Mark as valid if we have page info
                 self.valid = True
             except (ValueError, IndexError):
                 self.valid = False
