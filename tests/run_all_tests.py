@@ -31,6 +31,7 @@ def main():
         'test_integration_end_to_end.py',  # Main integration test
         'test_peirce_text_coverage.py',    # Text coverage validation
         'test_highlight_positions.py',      # Position verification
+        'test_highlight_width_coverage.py', # Width coverage validation
     ]
     
     results = {}

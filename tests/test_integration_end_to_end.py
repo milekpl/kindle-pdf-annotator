@@ -74,7 +74,7 @@ def check_pdf_quality(pdf_path: str, expected_highlights: int, book_name: str) -
         }
 
 
-def test_dataset(dataset_info: dict) -> bool:
+def run_dataset_test(dataset_info: dict) -> bool:
     """
     Test a single dataset through the complete pipeline
     
@@ -181,7 +181,7 @@ def test_end_to_end_integration():
     # Run tests
     results = {}
     for dataset in datasets:
-        results[dataset['name']] = test_dataset(dataset)
+        results[dataset['name']] = run_dataset_test(dataset)
     
     # Summary
     print(f"\n{'='*70}")
