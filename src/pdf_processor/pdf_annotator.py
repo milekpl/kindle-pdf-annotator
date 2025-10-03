@@ -131,7 +131,9 @@ class PDFAnnotator:
 
             if quads:
                 highlight = page.add_highlight_annot(quads)
-                highlight.set_info(title="Kindle Highlight", content=content)
+                # Kindle differentiates between highlights (no content) and notes (with content)
+                # Only set title, not content
+                highlight.set_info(title="Kindle Highlight")
                 highlight.set_colors(stroke=[1, 1, 0])  # Yellow
                 highlight.update()
                 return True

@@ -27,15 +27,7 @@ def convert_amazon_to_pdf_annotator_format(amazon_annotations: List[Dict[str, An
         pdf_x = ann.get('pdf_x', 0)
         pdf_y = ann.get('pdf_y', 0)
         page_number = ann.get('pdf_page_0based', 0)
-        
-        # DEBUG: Check if this is the title
-        if ann.get('kindle_width') == 46:
-            print(f"🔍 DEBUG Processing title in adapter:")
-            print(f"   content: '{content}'")
-            print(f"   ann_type: {ann_type}")
-            print(f"   Empty content check: not content = {not content}")
-            print(f"   Skip condition: {not content and ann_type not in ['highlight', 'bookmark']}")
-        
+                
         # Skip empty annotations, but NOT for highlights or bookmarks (they don't need content)
         if not content and ann_type not in ['highlight', 'bookmark']:
             if ann.get('kindle_width') == 46:
@@ -81,16 +73,6 @@ def convert_amazon_to_pdf_annotator_format(amazon_annotations: List[Dict[str, An
             bottom_candidates.append(pdf_y + pdf_height)
             start_line_height = max(0.1, start_rect.height)
             end_line_height: Optional[float] = None
-
-            # DEBUG: Check what values we're getting for first highlight
-            if ann.get('type') == 'highlight' and ann.get('kindle_width') == 46:  # Title highlight
-                print(f"🔍 DEBUG Title annotation in adapter:")
-                print(f"   pdf_width from ann: {pdf_width} (type: {type(pdf_width)})")
-                print(f"   pdf_height from ann: {pdf_height} (type: {type(pdf_height)})")
-                print(f"   start_rect: {start_rect}")
-                print(f"   segment_rects count: {len(segment_rects)}")
-                for i, rect in enumerate(segment_rects):
-                    print(f"   segment_rects[{i}]: {rect}")
 
 
             # Use start/end position strings for multi-word / multi-line spans

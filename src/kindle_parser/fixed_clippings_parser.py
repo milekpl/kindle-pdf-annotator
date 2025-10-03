@@ -11,6 +11,9 @@ def parse_myclippings_for_book(clippings_file: str, book_name: str) -> List[Dict
     """
     Parse MyClippings.txt and extract entries for a specific book
     FIXED: Handles case-insensitive 'page' and extracts first page from ranges
+    
+    Note: Kindle strips the book name at the first '.pdf' in the filename.
+    So '659ec7697e419.pdf-cdeKey_ABC.pdf' becomes '659ec7697e419' in clippings.
     """
     with open(clippings_file, 'r', encoding='utf-8') as f:
         content = f.read()
@@ -18,7 +21,13 @@ def parse_myclippings_for_book(clippings_file: str, book_name: str) -> List[Dict
     entries = content.split('==========')
     book_entries = []
     
+    # Normalize book name: strip at first .pdf if present
+    # This matches how Kindle stores book names in MyClippings.txt
+    normalized_book_name = book_name.split('.pdf')[0] if '.pdf' in book_name else book_name
+    
     print(f"🔍 Parsing MyClippings for book: {book_name}")
+    if normalized_book_name != book_name:
+        print(f"   Normalized to: {normalized_book_name}")
     print(f"📄 Total raw entries in file: {len(entries)}")
     
     for entry in entries:
@@ -32,8 +41,8 @@ def parse_myclippings_for_book(clippings_file: str, book_name: str) -> List[Dict
             
         title_line = lines[0].strip()
         
-        # Check if this entry is for our book
-        if book_name.lower() in title_line.lower():
+        # Check if this entry is for our book using normalized name
+        if normalized_book_name.lower() in title_line.lower():
             meta_line = lines[1].strip()
             
             # FIXED: Case-insensitive regex pattern

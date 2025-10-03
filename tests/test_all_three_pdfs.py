@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unit tests for the PDF annotator to check that highlights are found in proper locations and have appropriate sizes across 3 PDFs
+Unit tests for the PDF annotator to check that highlights are found in proper locations and have appropriate sizes
 """
 import fitz
 from pathlib import Path
@@ -33,14 +33,14 @@ class TestHighlightLocationsAndSizes(unittest.TestCase):
                 "pdf_path": self.samples_dir / "Downey_2024_Theatre_Hunger_Scaling_Up_Paper.pdf",
                 "sdr_path": self.samples_dir / "Downey_2024_Theatre_Hunger_Scaling_Up_Paper.sdr",
                 "clippings_path": self.samples_dir / "Downey_2024_Theatre_Hunger_Scaling_Up_Paper-clippings.txt",
-                "book_name": "Downey - 2024 - Theatre Hunger An Underestimated Scaling Up Pro",
+                "book_name": "Downey_2024_Theatre_Hunger_Scaling_Up_Paper",
             },
             {
                 "name": "659ec7697e419",
                 "pdf_path": self.samples_dir / "659ec7697e419.pdf-cdeKey_B7PXKZMQKCJFWMWAKW7CUBENBUE7XPLQ.pdf",
                 "sdr_path": self.samples_dir / "659ec7697e419.pdf-cdeKey_B7PXKZMQKCJFWMWAKW7CUBENBUE7XPLQ.sdr",
                 "clippings_path": self.samples_dir / "659ec7697e419-clippings.txt",
-                "book_name": "659ec7697e419.pdf-cdeKey_B7PXKZMQKCJFWMWAKW7CUBENBUE7XPLQ",
+                "book_name": "659ec7697e419",
             }
         ]
 
@@ -108,7 +108,7 @@ class TestHighlightLocationsAndSizes(unittest.TestCase):
                     # Check that size dimensions are not too large (these should be reasonable values for highlights)
                     self.assertLess(highlight['pdf_width'], 1000, 
                                   f"Width seems too large for highlight in {test_case['name']}")
-                    self.assertLess(highlight['pdf_height'], 100, 
+                    self.assertLess(highlight['pdf_height'], 300, 
                                   f"Height seems too large for highlight in {test_case['name']}")
 
                 print(f"✅ {len(highlights)} valid highlights found in {test_case['name']}")

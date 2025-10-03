@@ -7,13 +7,16 @@ A Python application to extract Kindle annotations from PDS files and embed them
 ## Features
 
 - **Complete Annotation Support**: Extracts and preserves notes, highlights, and bookmarks from Kindle
+- **Intelligent Text-Based Matching**: Primary strategy using normalized text search with comprehensive ligature handling
+- **Language-Independent Ligature Support**: Handles f-ligatures (ﬁ, ﬂ, ﬀ, ﬃ, ﬄ), st-ligatures (ﬆ), ae-ligatures (æ, Æ), oe-ligatures (œ, Œ)
+- **Fuzzy Matching Fallback**: Uses Levenshtein distance (85% threshold) for long texts with minor variations
 - **Precise Amazon Coordinate System**: Converts Kindle coordinates to PDF coordinates with sub-point accuracy
 - **Multiple Input Sources**: Processes both PDS files (`.pds`) and `MyClippings.txt` 
 - **Accurate Positioning**: Uses precise coordinate system with 0.1-0.5 point precision
 - **Correct Highlight Sizing**: Uses actual Kindle annotation dimensions instead of fixed rectangles
 - **PDF Navigation Bookmarks**: Creates real PDF bookmarks visible in all PDF viewers
 - **GUI and CLI**: Both graphical interface and command-line tool available
-- **Comprehensive Testing**: 27 unit tests with high coverage
+- **Comprehensive Testing**: 16+ unit tests with high coverage including fuzzy matching validation
 
 ## Quick Start
 
@@ -94,10 +97,18 @@ python cli.py --kindle-folder "book.sdr" --pdf-file "book.pdf" --output "result.
 
 ## Technical Details
 
-- **Coordinate System**: Uses Amazon's inches×100 encoding with linear mapping
+- **Text-Based Matching**: Primary annotation strategy using normalized full-page text extraction
+- **Ligature Normalization**: Strips all ligatures to first character (ﬁ→f, æ→a, œ→o, ﬆ→s) matching Kindle's MyClippings.txt behavior
+- **Text Normalization Pipeline**:
+  1. Ligature stripping (all common types)
+  2. Hyphenation removal at line breaks
+  3. Whitespace normalization (newlines → spaces)
+  4. Period normalization (adds space after periods before capitals)
+- **Fuzzy Matching**: Levenshtein distance with sliding window for texts >50 characters (85% similarity threshold)
+- **Coordinate System**: Uses Amazon's inches×100 encoding with linear mapping as fallback
 - **Positioning Accuracy**: 0.1-0.5 point precision (sub-millimeter level)
 - **Highlight Sizing**: Extracts actual width/height from Kindle position data
-- **Y-Axis Correction**: 7-point adjustment for perfect text alignment
+- **Multi-line Highlight Support**: Correctly handles highlights spanning multiple lines with proper quad detection
 
 ## Testing
 
@@ -108,6 +119,12 @@ python -m pytest tests/ -v
 # Test specific functionality
 python tests/test_page_9_highlights.py
 python tests/test_krds_parser.py
+
+# Test ligature handling and fuzzy matching
+python -m pytest tests/test_fuzzy_ligature_matching.py -v -s
+
+# Test complex highlight patterns
+python -m pytest tests/test_snake_highlight.py -v
 ```
 
 ## License

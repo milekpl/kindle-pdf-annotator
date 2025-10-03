@@ -553,27 +553,89 @@ def create_amazon_compliant_annotations(krds_file_path: str, clippings_file: Opt
                     import re
                     search_text = re.sub(r'(\w)\.(\d)', r'\1. \2', search_text)
                     
-                    # Handle common OCR/typo issues
-                    # "fnd" is often a typo or OCR error for "find" (especially with ligatures)
-                    search_text = search_text.replace('fnd', 'find')
+                    # Handle periods without spaces: "word.Word" -> "word. Word"
+                    search_text = re.sub(r'\.([A-Z])', r'. \1', search_text)
                     
-                    # Try to find exact text using PyMuPDF's search with quads
-                    # Try multiple variants to handle ligatures
-                    search_variants = [
-                        search_text.replace('fi', 'ﬁ').replace('fl', 'ﬂ'),  # Convert to ligatures (PDF often has these)
-                        search_text,  # Original text as-is
-                        search_text.replace('ﬁ', 'fi').replace('ﬂ', 'fl'),  # Convert from ligatures (if clippings has them)
-                    ]
+                    # Normalize both texts to handle ligatures and hyphenation
+                    def strip_ligatures(text: str) -> str:
+                        """Strip ligatures to match Kindle's normalization."""
+                        text = text.replace('ﬁ', 'f').replace('ﬂ', 'f').replace('ﬀ', 'f')
+                        text = text.replace('ﬃ', 'f').replace('ﬄ', 'f')
+                        text = text.replace('ﬆ', 's').replace('ﬅ', 's')
+                        return text
+                    
+                    def normalize_text(text: str) -> str:
+                        """Normalize text: strip ligatures, remove hyphenation, normalize whitespace."""
+                        text = strip_ligatures(text)
+                        text = re.sub(r'-\n', '', text)  # Remove soft hyphens at line breaks
+                        text = ' '.join(text.split())  # Normalize whitespace
+                        return text
+                    
+                    # Get page text and normalize both
+                    page_text = page.get_text()
+                    page_text_norm = normalize_text(page_text)
+                    search_text_norm = normalize_text(search_text)
                     
                     quads = None
-                    for variant in search_variants:
+                    
+                    # First, try direct search (works if no ligatures/hyphens)
+                    for variant in [search_text, search_text.replace('fi', 'ﬁ').replace('fl', 'ﬂ')]:
                         quads = page.search_for(variant, quads=True)
                         if quads:
-                            search_text = variant  # Remember which variant worked
                             break
                     
-                    # If not found, try progressively shorter versions with ligature variants
-                    if not quads and len(search_text) > 100:
+                    # If direct search failed, use normalized matching
+                    if not quads and search_text_norm in page_text_norm:
+                        # Find position in normalized text
+                        norm_start = page_text_norm.index(search_text_norm)
+                        norm_end = norm_start + len(search_text_norm)
+                        
+                        # Build character-by-character mapping from normalized to original positions
+                        pos_map = []  # Maps each char in normalized text to position in original
+                        i = 0
+                        while i < len(page_text):
+                            char = page_text[i]
+                            
+                            # Handle ligatures (map ligature to single 'f' or 's')
+                            if char in ['ﬁ', 'ﬂ', 'ﬀ', 'ﬃ', 'ﬄ']:
+                                pos_map.append(i)
+                                i += 1
+                            elif char in ['ﬆ', 'ﬅ']:
+                                pos_map.append(i)
+                                i += 1
+                            # Handle soft hyphen at line break
+                            elif i + 1 < len(page_text) and char == '-' and page_text[i+1] == '\n':
+                                i += 2  # Skip both hyphen and newline, don't add to pos_map
+                            # Handle whitespace (collapse multiple spaces)
+                            elif char.isspace():
+                                if not pos_map or page_text[pos_map[-1]] not in [' ', '\n', '\t', '\r']:
+                                    pos_map.append(i)
+                                i += 1
+                            else:
+                                pos_map.append(i)
+                                i += 1
+                        
+                        # Map the match back to original positions
+                        if norm_start < len(pos_map) and norm_end <= len(pos_map):
+                            orig_start = pos_map[norm_start]
+                            orig_end = pos_map[norm_end - 1] + 1
+                            
+                            # Extract original text
+                            orig_text = page_text[orig_start:orig_end]
+                            
+                            # Normalize the extracted text for searching
+                            # PyMuPDF can't search text with newlines/hyphens, so we need to normalize
+                            orig_text_for_search = re.sub(r'-\n', '', orig_text)  # Remove soft hyphens
+                            orig_text_for_search = ' '.join(orig_text_for_search.split())  # Collapse whitespace
+                            
+                            # Search for the normalized original text
+                            quads = page.search_for(orig_text_for_search, quads=True)
+                            
+                            if quads:
+                                print(f"     ✓ Found via normalized text matching ({len(quads)} quads)")
+                    
+                    # Fallback: Try shorter versions
+                    if not quads and len(search_text) > 50:
                         for variant in [search_text[:100], search_text.replace('fi', 'ﬁ').replace('fl', 'ﬂ')[:100]]:
                             quads = page.search_for(variant, quads=True)
                             if quads:
