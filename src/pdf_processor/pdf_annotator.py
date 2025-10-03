@@ -67,16 +67,9 @@ class PDFAnnotator:
         
         # DEBUG: Check what annotations are received
         print(f"\n🎯 PDF ANNOTATOR received {len(annotations)} annotations:")
-        title_found = False
         for i, ann in enumerate(annotations):
             pdf_width = ann.get('pdf_width', 0)
-            if abs(pdf_width - 184.2) < 0.1:  # Title annotation
-                title_found = True
-                print(f"   ✅ [{i}] Title annotation: pdf_width={pdf_width}")
-            else:
-                print(f"   [{i}] Annotation: pdf_width={pdf_width}")
-        if not title_found:
-            print(f"   ❌ Title annotation (pdf_width=184.2) NOT found!")
+            print(f"   [{i}] Annotation: pdf_width={pdf_width}")
         
         added_count = 0
         for annotation in annotations:
@@ -136,42 +129,16 @@ class PDFAnnotator:
         try:
             quads = self._build_highlight_quads(page, annotation)
 
-            # DEBUG: Check if this is the title annotation
-            pdf_width = annotation.get('pdf_width', 0)
-            if abs(pdf_width - 184.2) < 0.1:
-                print(f"\n🎯 TITLE ANNOTATION DEBUG:")
-                print(f"   Quads built: {quads is not None}")
-                if quads:
-                    print(f"   Number of quads: {len(quads)}")
-                    for i, quad in enumerate(quads):
-                        print(f"   Quad {i}: {quad}")
-                        print(f"   Quad valid: {quad.is_valid}")
-                        print(f"   Quad area: {quad.get_area()}")
-
             if quads:
                 highlight = page.add_highlight_annot(quads)
                 highlight.set_info(title="Kindle Highlight", content=content)
                 highlight.set_colors(stroke=[1, 1, 0])  # Yellow
                 highlight.update()
-                
-                # DEBUG: Check if title annotation was successfully added
-                if abs(pdf_width - 184.2) < 0.1:
-                    print(f"   ✅ Title highlight annotation added successfully!")
-                
                 return True
             else:
-                # DEBUG: Check if this is the title annotation failing
-                if abs(pdf_width - 184.2) < 0.1:
-                    print(f"   ❌ Title annotation FAILED - no quads built!")
-                
                 logger.warning(f"Could not build quads for annotation on page {page.number}")
                 return False
         except Exception as e:
-            # DEBUG: Check if title annotation threw exception
-            pdf_width = annotation.get('pdf_width', 0)
-            if abs(pdf_width - 184.2) < 0.1:
-                print(f"   ❌ Title annotation EXCEPTION: {e}")
-            
             logger.error(f"Error adding highlight on page {page.number}: {e}")
             return False
 
@@ -253,14 +220,9 @@ class PDFAnnotator:
         """Build a set of rectangles that track each highlighted line using simple margin-based approach"""
         content = (annotation.get("content") or "").strip()
         
-        # DEBUG: Check if this is the title annotation
+        # DEBUG: Log annotation details for troubleshooting
         pdf_width = annotation.get("pdf_width", 0.0)
-        if abs(pdf_width - 184.2) < 0.1:  # Title annotation
-            print(f"\n🎯 PDF ANNOTATOR DEBUG (Title):")
-            print(f"   pdf_width: {pdf_width}")
-            print(f"   pdf_height: {annotation.get('pdf_height', 0.0)}")
-            print(f"   pdf_x: {annotation.get('pdf_x', 0)}")
-            print(f"   pdf_y: {annotation.get('pdf_y', 0)}")
+        print(f"   Processing annotation: width={pdf_width}, height={annotation.get('pdf_height', 0.0)}")
         
         # PRIORITY 0: If we have pre-converted PDF coordinates (from amazon_coordinate_system), use them directly.
         pdf_width = annotation.get("pdf_width", 0.0)

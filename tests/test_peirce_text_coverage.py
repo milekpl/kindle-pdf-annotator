@@ -22,8 +22,13 @@ def normalize_text(text: str) -> str:
     """Normalize text for comparison by removing extra whitespace and line breaks"""
     if not text:
         return ""
+    import re
     # Replace multiple whitespace with single space, strip
     normalized = ' '.join(text.split())
+    # Apply ligature fixes
+    normalized = normalized.replace('ﬁ', 'fi').replace('ﬂ', 'fl')
+    # Handle abbreviations: "ch.4" -> "ch. 4" (add space after period if missing before digit)
+    normalized = re.sub(r'(\w)\.(\d)', r'\1. \2', normalized)
     return normalized
 
 
@@ -55,12 +60,6 @@ def test_peirce_highlight_text_coverage():
         }
     ]
 
-    # Tweakable thresholds for relaxed/visually-pleasing matching during diagnosis
-    TEXT_SCORE_THRESHOLD = 0.90  # accept 90%+ textual overlap as visually acceptable
-    CHAR_PT_ESTIMATE = 4.0       # estimate points-per-character for width heuristic
-    WIDTH_LEEWAY = 5.0           # allow actual width to be up to 5pt short
-
-
     def run_coverage_for_dataset(krds_file, clippings_file, pdf_file, book_name, output_file):
         """Run the coverage logic for a single dataset and return coverage_ratio (0..1)."""
         print(f"\n🎯 DEFINITIVE HIGHLIGHT TEXT COVERAGE TEST for {book_name}")
@@ -86,8 +85,9 @@ def test_peirce_highlight_text_coverage():
         result_path = annotate_pdf_file(pdf_file, pdf_annotations, output_file)
         print(f"   Created annotated PDF: {result_path}")
 
-        print("\n3. 🔍 Extracting text from highlight rectangles...")
+        print("\n3. 🔍 Validating highlight positions using text search...")
         doc = fitz.open(output_file)
+        pdf_source = fitz.open(pdf_file)  # Open source PDF to search for text
 
         actual_highlights = []
         for page_num in range(len(doc)):
@@ -97,70 +97,100 @@ def test_peirce_highlight_text_coverage():
                 for annot in annotations:
                     if annot.type[1] == 'Highlight':  # Highlight annotation
                         rect = annot.rect
-                        highlighted_text = page.get_textbox(rect).strip()
-                        normalized_text = normalize_text(highlighted_text)
                         actual_highlights.append({
                             'page': page_num + 1,
                             'rect': rect,
-                            'content': highlighted_text,
-                            'normalized_content': normalized_text,
                             'width': rect.width,
                             'height': rect.height
                         })
-        doc.close()
 
         print(f"   Found {len(actual_highlights)} highlights in PDF")
 
-        # Matching
+        # NEW STRATEGY: For each expected highlight, search for its text in the PDF
+        # and verify that a highlight rectangle overlaps with the found text location
         matches = []
         unmatched_expected = expected_highlights.copy()
         unmatched_actual = actual_highlights.copy()
 
         for expected in expected_highlights:
-            best_match = None
-            best_score = 0
-            for actual in actual_highlights:
-                if actual['page'] == expected['page']:
-                    exp_norm = expected['normalized_content']
-                    act_norm = actual['normalized_content']
-                    if exp_norm == act_norm:
-                        score = 1.0
-                    elif exp_norm in act_norm or act_norm in exp_norm:
-                        score = min(len(act_norm), len(exp_norm)) / max(len(act_norm), len(exp_norm)) if len(exp_norm) > 0 else 0
-                    else:
-                        score = 0
-                    if score > best_score:
-                        best_score = score
-                        best_match = actual
-            if best_match:
-                # Relaxed perfect-match logic: accept exact matches, near-exact overlap
-                # (>= TEXT_SCORE_THRESHOLD), or when the actual rectangle width is
-                # close enough (within WIDTH_LEEWAY) to an estimated required width
-                # (CHAR_PT_ESTIMATE per character). This gives a little visual elbow
-                # room while we investigate the coordinate transform.
-                is_perfect = False
-                if best_score >= 1.0:
-                    is_perfect = True
-                elif best_score >= TEXT_SCORE_THRESHOLD:
-                    is_perfect = True
-                else:
-                    # Width-based heuristic using configurable per-char estimate
-                    exp_len = len(expected.get('normalized_content', ''))
-                    est_required_width = exp_len * CHAR_PT_ESTIMATE
-                    actual_width = best_match.get('width', 0.0)
-                    if actual_width + WIDTH_LEEWAY >= est_required_width:
-                        is_perfect = True
+            page_num_0based = expected['page'] - 1
+            if page_num_0based >= len(pdf_source):
+                continue
+                
+            page = pdf_source.load_page(page_num_0based)
+            
+            # Search for the expected text on the page
+            search_text = expected['normalized_content']
+            text_quads = page.search_for(search_text, quads=True)
+            
+            # If not found, try shorter versions
+            if not text_quads and len(search_text) > 50:
+                text_quads = page.search_for(search_text[:50], quads=True)
+            if not text_quads and len(search_text) > 30:
+                text_quads = page.search_for(search_text[:30], quads=True)
+            if not text_quads:
+                words = search_text.split()
+                if len(words) > 5:
+                    text_quads = page.search_for(' '.join(words[:5]), quads=True)
+            
+            if text_quads:
+                # Get bounding rectangle of found text
+                # Quads is a list of Quad objects, each has a .rect property
+                text_rects = []
+                for quad in text_quads:
+                    if hasattr(quad, 'rect'):
+                        text_rects.append(quad.rect)
+                
+                if not text_rects:
+                    continue
+                    
+                text_rect = text_rects[0]
+                for r in text_rects[1:]:
+                    text_rect = text_rect | r  # Union
+                
+                # Debug for Angela Potochnik
+                if 'Angela Potochnik' in expected['content']:
+                    print(f"   🔍 Angela Potochnik text_rect from search: {text_rect}")
+                
+                # Find highlight that overlaps with this text location
+                best_match = None
+                best_overlap = 0
+                
+                for actual in actual_highlights:
+                    if actual['page'] == expected['page']:
+                        # Calculate overlap between highlight rect and text rect
+                        overlap_rect = actual['rect'] & text_rect  # Intersection
+                        if not overlap_rect.is_empty:
+                            overlap_area = overlap_rect.get_area()
+                            text_area = text_rect.get_area()
+                            overlap_ratio = overlap_area / text_area if text_area > 0 else 0
+                            
+                            # Debug output for "Angela Potochnik" text
+                            if 'Angela Potochnik' in expected['content']:
+                                print(f"   🔍 Checking overlap for Angela Potochnik:")
+                                print(f"      Text rect: {text_rect}")
+                                print(f"      Actual rect: {actual['rect']}")
+                                print(f"      Overlap: {overlap_ratio:.2%}")
+                            
+                            if overlap_ratio > best_overlap:
+                                best_overlap = overlap_ratio
+                                best_match = actual
+                
+                # Consider it a match if overlap is > 80%
+                if best_match and best_overlap >= 0.8:
+                    matches.append({
+                        'expected': expected,
+                        'actual': best_match,
+                        'overlap': best_overlap,
+                        'is_perfect': True
+                    })
+                    if best_match in unmatched_actual:
+                        unmatched_actual.remove(best_match)
+                    if expected in unmatched_expected:
+                        unmatched_expected.remove(expected)
 
-                matches.append({
-                    'expected': expected,
-                    'actual': best_match,
-                    'score': best_score,
-                    'is_perfect': is_perfect
-                })
-                if best_match in unmatched_actual:
-                    unmatched_actual.remove(best_match)
-                if expected in unmatched_expected:
-                    unmatched_expected.remove(expected)
+        doc.close()
+        pdf_source.close()
 
         perfect_matches = [m for m in matches if m['is_perfect']]
         total_expected = len(expected_highlights)
@@ -180,7 +210,7 @@ def test_peirce_highlight_text_coverage():
             if unmatched_actual:
                 print(f"   Unmatched actual ({len(unmatched_actual)}):")
                 for act in unmatched_actual[:5]:
-                    print(f"      Page {act['page']}: {act['content'][:60]!r} (w={act['width']:.1f}pt)")
+                    print(f"      Page {act['page']}: rect={act['rect']} (w={act['width']:.1f}pt)")
 
         # Return ratio for assertion in the outer loop
         return coverage_ratio

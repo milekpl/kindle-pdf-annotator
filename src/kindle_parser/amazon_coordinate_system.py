@@ -371,6 +371,58 @@ def _process_bookmark_annotation(bookmark: Any, pdf_rect: Any) -> Dict[str, Any]
     )
 
 
+def _find_pdf_path(clippings_file: Optional[str], krds_file_path: str, book_name: str) -> Optional[str]:
+    """Find the PDF file path based on clippings file, KRDS file, or book name."""
+    
+    # Try based on clippings file location
+    if clippings_file:
+        clippings_path = Path(clippings_file)
+        if clippings_path.exists():
+            # Look in the same directory
+            parent_dir = clippings_path.parent
+            
+            possible_pdf_names = [
+                clippings_path.stem.replace('-clippings', '').replace('_clippings', '') + '.pdf',
+                book_name + '.pdf',
+                book_name.replace(' ', '_') + '.pdf'
+            ]
+            
+            for pdf_name in possible_pdf_names:
+                possible_pdf = parent_dir / pdf_name
+                if possible_pdf.exists():
+                    return str(possible_pdf)
+            
+            # Try globbing for PDFs with the book name in them
+            for pdf_file in parent_dir.glob('*.pdf'):
+                if book_name in pdf_file.stem:
+                    return str(pdf_file)
+    
+    # Try based on KRDS file location
+    krds_path = Path(krds_file_path)
+    if krds_path.exists():
+        # KRDS files are typically in .sdr subdirectory
+        # PDF would be in parent directory
+        parent_dir = krds_path.parent.parent if krds_path.parent.name.endswith('.sdr') else krds_path.parent
+        
+        possible_pdf_names = [
+            book_name + '.pdf',
+            book_name.replace(' ', '_') + '.pdf',
+            krds_path.stem.split('-cdeKey_')[0] + '.pdf' if '-cdeKey_' in krds_path.stem else krds_path.stem + '.pdf'
+        ]
+        
+        for pdf_name in possible_pdf_names:
+            possible_pdf = parent_dir / pdf_name
+            if possible_pdf.exists():
+                return str(possible_pdf)
+        
+        # Try globbing for PDFs matching book name
+        for pdf_file in parent_dir.glob('*.pdf'):
+            if book_name in pdf_file.stem:
+                return str(pdf_file)
+    
+    return None
+
+
 def _deduplicate_annotations(annotations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Remove duplicate annotations based on type, page, position, and content."""
 
@@ -401,17 +453,17 @@ def _deduplicate_annotations(annotations: List[Dict[str, Any]]) -> List[Dict[str
 
 def create_amazon_compliant_annotations(krds_file_path: str, clippings_file: Optional[str], book_name: str) -> List[Dict[str, Any]]:
     """
-    Create annotations using Amazon's coordinate system algorithm
-    Parses KRDS files directly without JSON intermediaries
+    Create annotations using Amazon's coordinate system algorithm.
+    Uses text-based matching as the primary strategy with coordinate calibration as fallback.
     
     Args:
         krds_file_path: Path to the KRDS file 
         clippings_file: Optional path to MyClippings.txt file for enhanced accuracy
         book_name: Name of the book for matching
     """
-    print("CREATING KINDLE ANNOTATIONS WITH IMPROVED COORDINATES")
-    print(f"   Using robust linear transformation: scale + offset")
-    print("   Coordinates now match PDF-Xchange viewer exactly!")
+    print("=" * 80)
+    print("🎯 CREATING KINDLE ANNOTATIONS WITH TEXT-BASED MATCHING")
+    print("=" * 80)
 
     # Parse MyClippings with our fixed parser (if provided)
     myclippings_entries = []
@@ -419,12 +471,12 @@ def create_amazon_compliant_annotations(krds_file_path: str, clippings_file: Opt
         try:
             from .fixed_clippings_parser import parse_myclippings_for_book
             myclippings_entries = parse_myclippings_for_book(clippings_file, book_name)
-            print(f"Loaded {len(myclippings_entries)} clippings from MyClippings.txt")
+            print(f"✅ Loaded {len(myclippings_entries)} clippings from MyClippings.txt")
         except Exception as e:
-            print(f"Warning: Could not parse MyClippings.txt: {e}")
+            print(f"⚠️  Warning: Could not parse MyClippings.txt: {e}")
             myclippings_entries = []
     else:
-        print("No MyClippings.txt provided - using KRDS data only")
+        print("ℹ️  No MyClippings.txt provided - using KRDS data only")
 
     # Parse KRDS file directly
     from .krds_parser import KindleReaderDataStore
@@ -433,160 +485,190 @@ def create_amazon_compliant_annotations(krds_file_path: str, clippings_file: Opt
     # Extract annotations using the proper method
     krds_annotations = krds_parser.extract_annotations()
     
-    print(f"   KRDS annotations extracted: {len(krds_annotations)}")
+    print(f"📊 KRDS annotations extracted: {len(krds_annotations)}")
     
     # Separate highlights, notes, and bookmarks
     highlights = [ann for ann in krds_annotations if 'highlight' in ann.annotation_type]
     notes = [ann for ann in krds_annotations if 'note' in ann.annotation_type]
     bookmarks = [ann for ann in krds_annotations if 'bookmark' in ann.annotation_type]
     
-    print(f"   KRDS highlights: {len(highlights)}")
-    print(f"   KRDS notes: {len(notes)}")
-    print(f"   KRDS bookmarks: {len(bookmarks)}")
+    print(f"   - Highlights: {len(highlights)}")
+    print(f"   - Notes: {len(notes)}")
+    print(f"   - Bookmarks: {len(bookmarks)}")
     
-    # Use standard A4 dimensions as approximation for PDF rect
-    standard_pdf_rect = fitz.Rect(0, 0, CONFIG.default_page_width, CONFIG.default_page_height)
+    # Find PDF path to get actual dimensions
+    pdf_path = _find_pdf_path(clippings_file, krds_file_path, book_name)
+    
+    if pdf_path:
+        print(f"\n📄 Found PDF: {pdf_path}")
+        doc = fitz.open(pdf_path)
+        if len(doc) > 0:
+            actual_pdf_rect = doc[0].rect
+            print(f"   PDF dimensions: {actual_pdf_rect.width:.1f} x {actual_pdf_rect.height:.1f} points")
+        else:
+            print(f"   ⚠️  PDF has no pages, using defaults")
+            actual_pdf_rect = fitz.Rect(0, 0, CONFIG.default_page_width, CONFIG.default_page_height)
+        doc.close()
+    else:
+        print(f"\n⚠️  Could not find PDF file, using default dimensions")
+        actual_pdf_rect = fitz.Rect(0, 0, CONFIG.default_page_width, CONFIG.default_page_height)
 
-    print("\nCONVERTING COORDINATES:")
-    print(f"   Using PDF dimensions: {standard_pdf_rect.width:.1f} x {standard_pdf_rect.height:.1f}")
+    print("\n" + "=" * 80)
+    print("🔍 PROCESSING ANNOTATIONS")
+    print("=" * 80)
 
     # Try coordinate-based approach first
     coordinate_based_annotations = []
     for highlight in highlights:
         try:
-            annotation = _process_highlight_annotation(highlight, standard_pdf_rect)
+            annotation = _process_highlight_annotation(highlight, actual_pdf_rect)
             coordinate_based_annotations.append(annotation)
         except ValueError as e:
             print(f"   Warning: Skipping invalid highlight: {e}")
             continue
 
-    # If we have clippings data, validate coordinate-based approach and use text-based fallback if needed
+    # If we have clippings data, USE TEXT-BASED MATCHING as primary approach
     if myclippings_entries and len([e for e in myclippings_entries if e.get('type') == 'highlight']) > 0:
-        print("   Validating coordinate-based annotations with text matching...")
+        print("\n📍 Using TEXT-BASED MATCHING (primary strategy)...")
+        
+        if pdf_path:
+            text_based_annotations = []
+            doc = fitz.open(pdf_path)
+            
+            for entry in myclippings_entries:
+                if entry.get('type') == 'highlight' and entry.get('content', '').strip():
+                    content = entry['content'].strip()
+                    pdf_page = entry.get('pdf_page', 1) - 1  # Convert to 0-based
 
-        # Check if coordinate-based highlights actually capture the expected text
-        coordinate_success_count = 0
-        for ann in coordinate_based_annotations:
-            if ann.get('pdf_width', 0) > 0 and ann.get('pdf_height', 0) > 0:
-                coordinate_success_count += 1
+                    if pdf_page >= len(doc) or pdf_page < 0:
+                        continue
 
-        print(f"   Coordinate-based annotations with valid dimensions: {coordinate_success_count}/{len(coordinate_based_annotations)}")
+                    page = doc[pdf_page]
+                    print(f"   Finding text on page {pdf_page + 1}: {repr(content[:50])}...")
 
-        # If less than 50% of highlights have valid dimensions, use text-based approach
-        if coordinate_success_count < len(coordinate_based_annotations) * 0.5:
-            print("   Coordinate-based approach has poor results, using text-based fallback...")
+                    # Normalize text for better matching
+                    search_text = ' '.join(content.split())
+                    search_text = search_text.replace('ﬁ', 'fi').replace('ﬂ', 'fl')
+                    # Handle abbreviations: "ch.4" -> "ch. 4" (add space after period if missing)
+                    import re
+                    search_text = re.sub(r'(\w)\.(\d)', r'\1. \2', search_text)
+                    
+                    # Try to find exact text using PyMuPDF's search with quads
+                    quads = page.search_for(search_text, quads=True)
+                    
+                    # If not found, try progressively shorter versions
+                    if not quads and len(search_text) > 50:
+                        quads = page.search_for(search_text[:50], quads=True)
+                    if not quads and len(search_text) > 30:
+                        quads = page.search_for(search_text[:30], quads=True)
+                    
+                    # If still not found, try first few words
+                    if not quads:
+                        words = search_text.split()
+                        if len(words) > 5:
+                            quads = page.search_for(' '.join(words[:5]), quads=True)
+                        elif len(words) > 3:
+                            quads = page.search_for(' '.join(words[:3]), quads=True)
 
-            # Find PDF path for text-based approach
-            pdf_path = None
-            clippings_path = Path(clippings_file) if clippings_file else None
-            if clippings_path:
-                possible_pdf_names = [
-                    clippings_path.stem.replace('-clippings', '').replace('_clippings', '') + '.pdf',
-                    book_name + '.pdf',
-                    book_name.replace(' ', '_') + '.pdf'
-                ]
+                    if quads:
+                        # Quads is a list of quad objects (each is a sequence of 4 points)
+                        # Convert to rectangles
+                        all_rects = []
+                        for quad in quads:
+                            # Each quad is a Quad object, we can get its rect
+                            if hasattr(quad, 'rect'):
+                                all_rects.append(quad.rect)
+                            else:
+                                # Fallback: try to convert quad to rect
+                                try:
+                                    all_rects.append(fitz.Rect(quad))
+                                except:
+                                    pass
+                        
+                        if all_rects:
+                            # Union all rects to get overall bounds
+                            text_rect = all_rects[0]
+                            for rect in all_rects[1:]:
+                                text_rect = text_rect | rect
+                            
+                            print(f"     ✓ Found at: x={text_rect.x0:.1f}, y={text_rect.y0:.1f}, w={text_rect.width:.1f}, h={text_rect.height:.1f}")
+                            print(f"       Quads: {len(quads)} character bounding boxes")
 
-                for pdf_name in possible_pdf_names:
-                    possible_pdf = clippings_path.parent / pdf_name
-                    if possible_pdf.exists():
-                        pdf_path = str(possible_pdf)
-                        print(f"   Found PDF for text-based approach: {pdf_path}")
-                        break
-
-            if pdf_path:
-                text_based_annotations = []
-                for entry in myclippings_entries:
-                    if entry.get('type') == 'highlight' and entry.get('content', '').strip():
-                        content = entry['content'].strip()
-                        pdf_page = entry.get('pdf_page', 1) - 1  # Convert to 0-based
-
-                        print(f"   Finding text: {repr(content[:50])}...")
-
-                        # Use robust text finding
-                        text_rect = find_text_in_pdf_robust(pdf_path, content, pdf_page)
-
-                        if text_rect:
-                            print(f"     ✓ Found at: {text_rect}")
-
-                            # Create annotation from found text rectangle
+                            # Create annotation with QUADS for precise highlighting
                             annotation = {
                                 'type': 'highlight',
                                 'json_page_0based': pdf_page,
                                 'pdf_page_0based': pdf_page,
                                 'myclippings_page_1based': pdf_page + 1,
-                                'kindle_x': 0,  # Not available in text-based approach
+                                'kindle_x': 0,
                                 'kindle_y': 0,
-                                'kindle_width': text_rect.width,
-                                'kindle_height': text_rect.height,
+                                'kindle_width': 0,
+                                'kindle_height': 0,
                                 'pdf_x': text_rect.x0,
                                 'pdf_y': text_rect.y0,
                                 'pdf_width': text_rect.width,
                                 'pdf_height': text_rect.height,
                                 'content': content,
-                                'timestamp': '',
-                                'source': 'text_based_fallback'
+                                'timestamp': entry.get('timestamp', ''),
+                                'source': 'text_based_matching',
+                                'coordinates': [text_rect.x0, text_rect.y0],
+                                'precise_quads': quads  # Store precise character-level quads
                             }
                             text_based_annotations.append(annotation)
                         else:
-                            print(f"     ✗ Could not locate text in PDF")
+                            print("     ✗ Could not convert quads to rectangles")
+                    else:
+                        print("     ✗ Could not locate text in PDF")
 
-                if text_based_annotations:
-                    print(f"   Text-based approach found {len(text_based_annotations)} annotations")
-                    corrected_annotations = text_based_annotations
-                else:
-                    print("   Text-based approach failed, falling back to coordinate-based...")
-                    corrected_annotations = coordinate_based_annotations
+            doc.close()
+
+            if text_based_annotations:
+                print(f"   ✅ Text-based matching found {len(text_based_annotations)} annotations")
+                corrected_annotations = text_based_annotations
             else:
-                print("   No PDF path available for text-based fallback, using coordinate-based approach...")
+                print("   ⚠️  Text-based matching failed, falling back to coordinate-based...")
                 corrected_annotations = coordinate_based_annotations
         else:
-            print("   Coordinate-based approach seems adequate, using it...")
+            print("   ⚠️  No PDF path available for text-based matching, using coordinate-based approach...")
             corrected_annotations = coordinate_based_annotations
     else:
-        print("   No clippings data available for validation, using coordinate-based approach...")
+        print("\n   ℹ️  No clippings data available, using coordinate-based approach...")
         corrected_annotations = coordinate_based_annotations
 
     # Process notes
+    print(f"\n📝 Processing {len(notes)} notes...")
     for note in notes:
         try:
-            annotation = _process_note_annotation(note, standard_pdf_rect)
+            annotation = _process_note_annotation(note, actual_pdf_rect)
             corrected_annotations.append(annotation)
         except ValueError as e:
             print(f"   Warning: Skipping invalid note: {e}")
             continue
 
-    # Process bookmarks
-    for bookmark in bookmarks:
-        try:
-            annotation = _process_bookmark_annotation(bookmark, standard_pdf_rect)
-            corrected_annotations.append(annotation)
-        except ValueError as e:
-            print(f"   Warning: Skipping invalid bookmark: {e}")
-            continue
+    # Process bookmarks (skip those without location data)
+    print(f"\n🔖 Processing {len(bookmarks)} bookmarks (skipped - no location data)...")
+    for _ in bookmarks:
+        # Bookmarks typically don't have precise location data, skip them
+        # They're just page markers
+        continue
 
-    # Note: MyClippings content is used for ground truth/testing only, not for adding annotations
-    # Previous implementation incorrectly merged clippings content into annotations
-    # This has been removed as it was causing duplicate annotations and incorrect behavior
-    print("\nUSING MYCLIPPINGS CONTENT FOR VERIFICATION (NOT ADDING ANNOTATIONS):")
-    print("   MyClippings integration disabled to prevent incorrect annotation duplication")
-    print(f"   Found {len(myclippings_entries)} clippings entries for verification purposes")
+    # Note: MyClippings content is used for ground truth/testing only
+    print("\n" + "=" * 80)
+    print("📊 ANNOTATION SUMMARY")
+    print("=" * 80)
+    print(f"   Total annotations before dedup: {len(corrected_annotations)}")
     
-    # Create coordinates field for adapter compatibility
+    # Create coordinates field for adapter compatibility (if not already present)
     for annotation in corrected_annotations:
-        annotation['coordinates'] = [annotation['pdf_x'], annotation['pdf_y']]
+        if 'coordinates' not in annotation:
+            annotation['coordinates'] = [annotation['pdf_x'], annotation['pdf_y']]
     
     # Sort by page and position
     corrected_annotations.sort(key=lambda x: (x['pdf_page_0based'], x['pdf_y']))
 
     # Deduplicate annotations based on type, page, and coordinates
-    print("\nDE-DUPLICATING ANNOTATIONS:")
-    print(f"   Before deduplication: {len(corrected_annotations)}")
-
     corrected_annotations = _deduplicate_annotations(corrected_annotations)
-    print(f"   After deduplication: {len(corrected_annotations)}")
-
-    print("\nAMAZON CONVERSION SUMMARY:")
-    print(f"   Total unique annotations: {len(corrected_annotations)}")
+    print(f"   Total annotations after dedup: {len(corrected_annotations)}")
 
     # Check for remaining coordinate duplicates
     coordinate_groups: Dict[Tuple[int, float, float], List[Dict[str, Any]]] = {}
@@ -595,14 +677,10 @@ def create_amazon_compliant_annotations(krds_file_path: str, clippings_file: Opt
         coordinate_groups.setdefault(key, []).append(ann)
 
     duplicates = {k: v for k, v in coordinate_groups.items() if len(v) > 1}
-    print(f"   Coordinate duplicates: {len(duplicates)} locations")
-
     if duplicates:
-        print("   Still some duplicates - may be legitimate highlight+note pairs")
-        for (page, x, y), anns in list(duplicates.items())[:3]:  # Show first 3
-            types = [a['type'] for a in anns]
-            print(f"      Page {page}, ({x:.1f}, {y:.1f}): {types}")
+        print(f"   Coordinate duplicates: {len(duplicates)} locations (may be legitimate highlight+note pairs)")
     else:
-        print("   No coordinate duplicates!")
+        print("   ✅ No coordinate duplicates!")
 
+    print("=" * 80)
     return corrected_annotations
