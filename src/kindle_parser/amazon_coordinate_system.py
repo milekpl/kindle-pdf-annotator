@@ -645,12 +645,17 @@ def create_amazon_compliant_annotations(krds_file_path: str, clippings_file: Opt
             print(f"   Warning: Skipping invalid note: {e}")
             continue
 
-    # Process bookmarks (skip those without location data)
-    print(f"\n🔖 Processing {len(bookmarks)} bookmarks (skipped - no location data)...")
-    for _ in bookmarks:
-        # Bookmarks typically don't have precise location data, skip them
-        # They're just page markers
-        continue
+    # Process bookmarks - they have location data and should be added to PDF outline
+    print(f"\n🔖 Processing {len(bookmarks)} bookmarks...")
+    for bookmark in bookmarks:
+        try:
+            # Bookmarks use same processing as notes but with type='bookmark'
+            annotation = _process_note_annotation(bookmark, actual_pdf_rect)
+            annotation['type'] = 'bookmark'  # Override type
+            corrected_annotations.append(annotation)
+        except ValueError as e:
+            print(f"   Warning: Skipping invalid bookmark: {e}")
+            continue
 
     # Note: MyClippings content is used for ground truth/testing only
     print("\n" + "=" * 80)

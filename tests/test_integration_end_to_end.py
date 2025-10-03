@@ -171,7 +171,7 @@ def test_end_to_end_integration():
         },
         {
             'name': '659ec7697e419',
-            'krds': 'examples/sample_data/659ec7697e419.sdr/659ec7697e41912347ea8efc3f766707171e2bfcc00f4.pds',
+            'krds': 'examples/sample_data/659ec7697e419.pdf-cdeKey_B7PXKZMQKCJFWMWAKW7CUBENBUE7XPLQ.sdr/659ec7697e419.pdf-cdeKey_B7PXKZMQKCJFWMWAKW7CUBENBUE7XPLQ12347ea8efc3f766707171e2bfcc00f4.pds',
             'clippings': 'examples/sample_data/659ec7697e419-clippings.txt',
             'pdf': 'examples/sample_data/659ec7697e419.pdf-cdeKey_B7PXKZMQKCJFWMWAKW7CUBENBUE7XPLQ.pdf',
             'expected_highlights': 4

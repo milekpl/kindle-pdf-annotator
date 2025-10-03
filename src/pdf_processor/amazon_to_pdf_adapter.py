@@ -239,16 +239,7 @@ def convert_amazon_to_pdf_annotator_format(amazon_annotations: List[Dict[str, An
     # DEBUG: Check if title annotation is in the final list
     print(f"\n✅ ADAPTER CONVERSION COMPLETE:")
     print(f"   Total annotations returned: {len(converted_annotations)}")
-    
-    title_found = False
-    for ann in converted_annotations:
-        if ann.get('pdf_width') == 184.2:
-            title_found = True
-            print(f"   ✅ Title annotation found in final list!")
-            break
-    if not title_found:
-        print(f"   ❌ Title annotation NOT found in final list!")
-    
+        
     return converted_annotations
 
 
