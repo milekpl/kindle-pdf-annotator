@@ -217,14 +217,33 @@ class PDFAnnotator:
             return False
 
     def _build_highlight_quads(self, page: fitz.Page, annotation: Dict[str, Any]) -> Optional[List[fitz.Rect]]:
-        """Build a set of rectangles that track each highlighted line using simple margin-based approach"""
+        """Build a set of rectangles that track each highlighted line using text search quads for snake pattern"""
         content = (annotation.get("content") or "").strip()
         
-        # DEBUG: Log annotation details for troubleshooting
-        pdf_width = annotation.get("pdf_width", 0.0)
-        print(f"   Processing annotation: width={pdf_width}, height={annotation.get('pdf_height', 0.0)}")
+        # PRIORITY 0: Use precise_quads from text-based matching (gives perfect snake pattern)
+        precise_quads = annotation.get("precise_quads")
+        if precise_quads:
+            # Keep as Quad objects - don't convert to Rects!
+            # PyMuPDF preserves multi-quad annotations better when using Quad objects directly
+            quad_objects = []
+            for quad in precise_quads:
+                # Check if it's already a Quad object (from search_for with quads=True)
+                if hasattr(quad, 'ul') and hasattr(quad, 'ur'):  # Quad has ul, ur, ll, lr points
+                    quad_objects.append(quad)
+                elif hasattr(quad, 'rect'):
+                    # It's a Quad with .rect - use the Quad itself, not the rect!
+                    quad_objects.append(quad)
+                else:
+                    # Try to convert to Rect as fallback
+                    try:
+                        quad_objects.append(fitz.Rect(quad))
+                    except:
+                        pass
+            
+            if quad_objects:
+                return quad_objects
         
-        # PRIORITY 0: If we have pre-converted PDF coordinates (from amazon_coordinate_system), use them directly.
+        # PRIORITY 1: If we have pre-converted PDF coordinates (from amazon_coordinate_system), use them directly.
         pdf_width = annotation.get("pdf_width", 0.0)
         pdf_height = annotation.get("pdf_height", 0.0)
 

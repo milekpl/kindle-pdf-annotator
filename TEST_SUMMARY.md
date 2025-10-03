@@ -120,13 +120,36 @@ pytest tests/ -v
 
 ## Summary
 
-✅ All 4 test suites passing  
-✅ 100% coverage on all 3 datasets (19 highlights total)  
-✅ Text-based matching working reliably  
-✅ Bookmarks appearing in PDF TOC  
-✅ Notes created as text annotations  
-✅ Highlights within page bounds  
-✅ Precise character-level positioning using PyMuPDF quads  
+✅ **All 4 test suites passing with 100% coverage**  
+✅ **Snake highlight pattern implemented** - highlights follow exact text bounds, not margin-to-margin rectangles
+
+### Test Coverage
+- **19 highlights** tested across 3 PDFs
+- **100% coverage** on all datasets
+- **2 bookmarks** in TOC
+- **2 notes** as text annotations
+- All highlights within page bounds
+- **Precise character-level positioning** using PyMuPDF quads (snake pattern)
+
+### Snake Pattern Implementation
+
+The highlight pattern now follows the **exact text content** from clippings, creating a "snake" shape that wraps around line breaks:
+
+**Before (rectangular blocks):**
+```
+[=====================================]  ← Full-width rectangle
+[=====================================]  ← Full-width rectangle
+[=====================================]  ← Full-width rectangle
+```
+
+**After (snake pattern):**
+```
+              [==================]      ← Starts mid-line, ends at text
+[====================================]  ← Full line of text
+[==========]                            ← Ends mid-line at text end
+```
+
+This is achieved by using `precise_quads` from PyMuPDF's `search_for()` method, which returns character-level bounding boxes for the exact text matched.
 
 **Total highlights tested:** 19 across 3 PDFs  
 **Success rate:** 100%

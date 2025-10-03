@@ -212,6 +212,9 @@ def convert_amazon_to_pdf_annotator_format(amazon_annotations: List[Dict[str, An
             'start_position': ann.get('start_position'),
             'end_position': ann.get('end_position'),
             
+            # PRECISE QUADS: Pass through character-level quads from text search for snake pattern
+            'precise_quads': ann.get('precise_quads'),
+            
             # Pre-computed segment rectangles (for highlights only)
             # For single-line highlights, DON'T pass segment_rects - let PDF annotator use pre-converted coords
             # For multi-line highlights, pass segment_rects for proper multi-line handling

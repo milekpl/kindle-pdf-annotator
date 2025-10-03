@@ -548,27 +548,65 @@ def create_amazon_compliant_annotations(krds_file_path: str, clippings_file: Opt
 
                     # Normalize text for better matching
                     search_text = ' '.join(content.split())
-                    search_text = search_text.replace('ﬁ', 'fi').replace('ﬂ', 'fl')
+                    
                     # Handle abbreviations: "ch.4" -> "ch. 4" (add space after period if missing)
                     import re
                     search_text = re.sub(r'(\w)\.(\d)', r'\1. \2', search_text)
                     
-                    # Try to find exact text using PyMuPDF's search with quads
-                    quads = page.search_for(search_text, quads=True)
+                    # Handle common OCR/typo issues
+                    # "fnd" is often a typo or OCR error for "find" (especially with ligatures)
+                    search_text = search_text.replace('fnd', 'find')
                     
-                    # If not found, try progressively shorter versions
+                    # Try to find exact text using PyMuPDF's search with quads
+                    # Try multiple variants to handle ligatures
+                    search_variants = [
+                        search_text.replace('fi', 'ﬁ').replace('fl', 'ﬂ'),  # Convert to ligatures (PDF often has these)
+                        search_text,  # Original text as-is
+                        search_text.replace('ﬁ', 'fi').replace('ﬂ', 'fl'),  # Convert from ligatures (if clippings has them)
+                    ]
+                    
+                    quads = None
+                    for variant in search_variants:
+                        quads = page.search_for(variant, quads=True)
+                        if quads:
+                            search_text = variant  # Remember which variant worked
+                            break
+                    
+                    # If not found, try progressively shorter versions with ligature variants
+                    if not quads and len(search_text) > 100:
+                        for variant in [search_text[:100], search_text.replace('fi', 'ﬁ').replace('fl', 'ﬂ')[:100]]:
+                            quads = page.search_for(variant, quads=True)
+                            if quads:
+                                break
+                    if not quads and len(search_text) > 80:
+                        for variant in [search_text[:80], search_text.replace('fi', 'ﬁ').replace('fl', 'ﬂ')[:80]]:
+                            quads = page.search_for(variant, quads=True)
+                            if quads:
+                                break
                     if not quads and len(search_text) > 50:
-                        quads = page.search_for(search_text[:50], quads=True)
+                        for variant in [search_text[:50], search_text.replace('fi', 'ﬁ').replace('fl', 'ﬂ')[:50]]:
+                            quads = page.search_for(variant, quads=True)
+                            if quads:
+                                break
                     if not quads and len(search_text) > 30:
-                        quads = page.search_for(search_text[:30], quads=True)
+                        for variant in [search_text[:30], search_text.replace('fi', 'ﬁ').replace('fl', 'ﬂ')[:30]]:
+                            quads = page.search_for(variant, quads=True)
+                            if quads:
+                                break
                     
                     # If still not found, try first few words
                     if not quads:
                         words = search_text.split()
                         if len(words) > 5:
-                            quads = page.search_for(' '.join(words[:5]), quads=True)
+                            for variant in [' '.join(words[:5]), ' '.join(words[:5]).replace('fi', 'ﬁ').replace('fl', 'ﬂ')]:
+                                quads = page.search_for(variant, quads=True)
+                                if quads:
+                                    break
                         elif len(words) > 3:
-                            quads = page.search_for(' '.join(words[:3]), quads=True)
+                            for variant in [' '.join(words[:3]), ' '.join(words[:3]).replace('fi', 'ﬁ').replace('fl', 'ﬂ')]:
+                                quads = page.search_for(variant, quads=True)
+                                if quads:
+                                    break
 
                     if quads:
                         # Quads is a list of quad objects (each is a sequence of 4 points)
