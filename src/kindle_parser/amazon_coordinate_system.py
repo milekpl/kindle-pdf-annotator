@@ -394,6 +394,8 @@ def _find_pdf_path(clippings_file: Optional[str], krds_file_path: str, book_name
             
             # Try globbing for PDFs with the book name in them
             for pdf_file in parent_dir.glob('*.pdf'):
+                if pdf_file.name.startswith("._"):  # Skip hidden system files
+                    continue
                 if book_name in pdf_file.stem:
                     return str(pdf_file)
     
@@ -417,6 +419,8 @@ def _find_pdf_path(clippings_file: Optional[str], krds_file_path: str, book_name
         
         # Try globbing for PDFs matching book name
         for pdf_file in parent_dir.glob('*.pdf'):
+            if pdf_file.name.startswith("._"):  # Skip hidden system files
+                continue
             if book_name in pdf_file.stem:
                 return str(pdf_file)
     
@@ -451,7 +455,13 @@ def _deduplicate_annotations(annotations: List[Dict[str, Any]]) -> List[Dict[str
     return unique_annotations
 
 
-def create_amazon_compliant_annotations(krds_file_path: str, clippings_file: Optional[str], book_name: str) -> List[Dict[str, Any]]:
+def create_amazon_compliant_annotations(
+    krds_file_path: str, 
+    clippings_file: Optional[str], 
+    book_name: str,
+    learn_mode: bool = False,
+    learn_output_path: Optional[str] = None
+) -> List[Dict[str, Any]]:
     """
     Create annotations using Amazon's coordinate system algorithm.
     Uses text-based matching as the primary strategy with coordinate calibration as fallback.
@@ -460,6 +470,8 @@ def create_amazon_compliant_annotations(krds_file_path: str, clippings_file: Opt
         krds_file_path: Path to the KRDS file 
         clippings_file: Optional path to MyClippings.txt file for enhanced accuracy
         book_name: Name of the book for matching
+        learn_mode: If True, track and export unmatched clippings with context
+        learn_output_path: Path to export learning data if learn_mode is True
     """
     print("=" * 80)
     print("🎯 CREATING KINDLE ANNOTATIONS WITH TEXT-BASED MATCHING")
@@ -533,6 +545,7 @@ def create_amazon_compliant_annotations(krds_file_path: str, clippings_file: Opt
         
         if pdf_path:
             text_based_annotations = []
+            unmatched_clippings = []  # Track unmatched clippings for learning mode
             doc = fitz.open(pdf_path)
             
             for entry in myclippings_entries:
@@ -719,8 +732,33 @@ def create_amazon_compliant_annotations(krds_file_path: str, clippings_file: Opt
                             print("     ✗ Could not convert quads to rectangles")
                     else:
                         print("     ✗ Could not locate text in PDF")
+                        # Add to unmatched clippings if in learning mode
+                        if learn_mode:
+                            # Extract a larger context from the page (500+ characters around where we expect the text)
+                            page_text = page.get_text()
+                            context_start = max(0, page_text_norm.find(search_text_norm[:50]) - 250 if search_text_norm[:50] in page_text_norm else 0)
+                            context_end = min(len(page_text), context_start + 500)
+                            context_text = page_text[context_start:context_end]
+                            
+                            unmatched_clippings.append({
+                                'original_clipping': content,
+                                'expected_search_text': search_text,
+                                'pdf_context': context_text,
+                                'page_number': pdf_page + 1,
+                                'book_name': book_name
+                            })
 
             doc.close()
+
+            if learn_mode and unmatched_clippings:
+                print(f"   📚 Learning mode: {len(unmatched_clippings)} unmatched clippings collected")
+                
+                # Export unmatched clippings to JSON file if path provided
+                if learn_output_path:
+                    import json
+                    with open(learn_output_path, 'w', encoding='utf-8') as f:
+                        json.dump(unmatched_clippings, f, indent=2, ensure_ascii=False)
+                    print(f"   📁 Exported unmatched clippings to: {learn_output_path}")
 
             if text_based_annotations:
                 print(f"   ✅ Text-based matching found {len(text_based_annotations)} annotations")

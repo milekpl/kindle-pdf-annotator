@@ -29,6 +29,8 @@ def main():
     parser.add_argument("--clippings", help="Path to MyClippings.txt file (optional)")
     parser.add_argument("--export-json", help="Export annotations to JSON file")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+    parser.add_argument("--learn", action="store_true", help="Enable learning mode to export unmatched clippings with context")
+    parser.add_argument("--learn-output", help="Output file for learning data (JSON format)")
     
     args = parser.parse_args()
     
@@ -121,7 +123,18 @@ def main():
         else:
             temp_file_created = False
         
-        amazon_annotations = create_amazon_compliant_annotations(krds_file, clippings_file, book_name)
+        if args.learn:
+            # For learning mode, we need to pass the learning output path
+            amazon_annotations = create_amazon_compliant_annotations(
+                krds_file, 
+                clippings_file, 
+                book_name,
+                learn_mode=args.learn,
+                learn_output_path=args.learn_output
+            )
+        else:
+            amazon_annotations = create_amazon_compliant_annotations(krds_file, clippings_file, book_name)
+        
         print(f"Found {len(amazon_annotations)} annotations using Amazon coordinate system")
         
         # Clean up temp file if created

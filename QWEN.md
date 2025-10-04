@@ -113,13 +113,81 @@ python tests/test_page_9_highlights.py
 python tests/test_krds_parser.py
 ```
 
-## Dependencies
+## Learning Mode for Text Matching Analysis
 
-- PyMuPDF (fitz) for PDF processing
-- python-dateutil for date parsing
-- chardet for character encoding detection
-- pillow for image handling
-- pytest for testing framework
+The application now includes a learning mode that helps identify and analyze text matching issues in the annotation process. This mode is designed to:
+
+1. **Capture unmatched clippings**: When text matching fails during annotation processing, the system exports the unmatched clipping along with contextual text from the PDF.
+
+2. **Export contextual data**: For each failed match, the system exports:
+   - The original clipping text that failed to match
+   - The contextual text from the PDF (500+ characters around the expected match position)
+   - Metadata about the book and page where matching failed
+
+3. **Generate analysis JSON**: The exported data is saved to a JSON file that can be used for further analysis.
+
+### How Learning Mode Works
+
+The learning mode operates as follows:
+
+1. When processing a book with MyClippings.txt and a PDF, the system attempts text-based matching as usual
+2. For each clipping that fails to match with the current matching algorithm, the system:
+   - Saves the clipping text and relevant PDF context
+   - Records the failure with details about what was attempted
+   - Collects this data for analysis
+3. After processing, a JSON file is exported containing all unmatched clippings with context
+
+### Running Learning Mode
+
+To use the learning mode, run the CLI with the `--learn` option:
+
+```bash
+python cli.py --learn --learn-output "learning_data.json" --kindle-folder "path/to/book.sdr" --pdf-file "book.pdf" --clippings "MyClippings.txt"
+```
+
+### Analysis Scripts
+
+The project includes several scripts for analyzing the learning data:
+
+1. **diff_analysis.py**: Compares unmatched clippings with their PDF context to identify patterns in text differences
+2. **frequency_transformations.py**: Analyzes differences to identify common transformations needed for better matching
+3. **process_learning_directory.py**: Processes multiple books in a directory to gather comprehensive learning data
+
+### Expected Output
+
+The frequency analysis script produces a sorted list of transformations that could improve text matching, such as:
+- Whitespace normalization patterns
+- Special character handling
+- Ligature replacements
+- Hyphenation handling
+- Text normalization rules
+
+### Using the Scripts
+
+To use the learning mode in practice:
+
+1. **Collect data**: Use `process_learning_directory.py` to process multiple PDFs and KRDS files:
+   ```bash
+   python scripts/process_learning_directory.py /path/to/learn/directory
+   ```
+   Note: Files starting with "._" (hidden system files) will be ignored.
+
+2. **Analyze differences**: Use `diff_analysis.py` to analyze the unmatched clippings:
+   ```bash
+   python scripts/diff_analysis.py learning_output/combined_learning_data.json
+   ```
+
+3. **Identify transformations**: Use `frequency_transformations.py` to get suggestions for improving text matching:
+   ```bash
+   python scripts/frequency_transformations.py learning_output/combined_learning_data.json
+   ```
+
+4. **Run the full workflow**: Use the `run_learning_mode.sh` script to execute the complete learning workflow:
+   ```bash
+   bash scripts/run_learning_mode.sh
+   ```
+   This script assumes your learning files are in `./learn/documents` and will create output in `./learning_output`.
+   Note: PDF files starting with "._" (hidden system files) will be ignored.
 
 ## License
 
