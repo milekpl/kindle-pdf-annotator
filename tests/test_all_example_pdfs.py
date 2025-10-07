@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Unit tests for the PDF annotator to check that highlights are found in proper locations and have appropriate sizes
+Unit tests for the PDF annotator to check that highlights are found in proper locations and have appropriate sizes.
+Tests all example PDFs in the examples/sample_data directory.
 """
 import fitz
 from pathlib import Path
 import sys
 import unittest
+import os
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
@@ -14,11 +16,12 @@ from src.pdf_processor.pdf_annotator import annotate_pdf_file
 
 
 class TestHighlightLocationsAndSizes(unittest.TestCase):
-    """Test class for validating highlight locations and sizes across three PDFs"""
+    """Test class for validating highlight locations and sizes across all example PDFs"""
     
     def setUp(self):
-        """Set up the test cases with three sample PDFs"""
+        """Set up the test cases with all example PDFs"""
         self.samples_dir = Path("examples/sample_data")
+        self.created_files = []  # Track files created during tests for cleanup
         
         self.test_cases = [
             {
@@ -41,11 +44,28 @@ class TestHighlightLocationsAndSizes(unittest.TestCase):
                 "sdr_path": self.samples_dir / "659ec7697e419.pdf-cdeKey_B7PXKZMQKCJFWMWAKW7CUBENBUE7XPLQ.sdr",
                 "clippings_path": self.samples_dir / "659ec7697e419-clippings.txt",
                 "book_name": "659ec7697e419",
+            },
+            {
+                "name": "Shea Page 136 (CropBox Example)",
+                "pdf_path": self.samples_dir / "page_136_shea.pdf",
+                "sdr_path": self.samples_dir / "page_136_shea.sdr",
+                "clippings_path": self.samples_dir / "page_136_shea-clippings.txt",
+                "book_name": "page_136_shea",
             }
         ]
+    
+    def tearDown(self):
+        """Clean up any PDF files created during tests"""
+        for file_path in self.created_files:
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    print(f"🧹 Cleaned up: {file_path}")
+            except Exception as e:
+                print(f"⚠️  Failed to clean up {file_path}: {e}")
 
     def test_annotations_across_all_pdfs(self):
-        """Test that all three PDFs have properly located and sized highlights"""
+        """Test that all example PDFs have properly located and sized highlights"""
         for test_case in self.test_cases:
             with self.subTest(pdf_name=test_case['name']):
                 pdf_path = test_case['pdf_path']
@@ -63,8 +83,8 @@ class TestHighlightLocationsAndSizes(unittest.TestCase):
                 else:
                     print(f"⚠️  Clippings file does not exist for {test_case['name']}")
                 
-                # Find KRDS files (.pds or .pdt)
-                krds_files = list(sdr_path.glob("*.pds")) + list(sdr_path.glob("*.pdt"))
+                # Find KRDS files (.pds only - .pdt files contain no annotations)
+                krds_files = list(sdr_path.glob("*.pds"))
                 self.assertGreater(len(krds_files), 0, f"No KRDS files found in {sdr_path}")
                 
                 print(f"📖 Found {len(krds_files)} KRDS files for {test_case['name']}")
@@ -115,9 +135,70 @@ class TestHighlightLocationsAndSizes(unittest.TestCase):
                 
                 # Verify that we can create an annotated PDF with these annotations
                 output_path = f"test_output_{test_case['book_name'].replace(' ', '_')[:20]}.pdf"
+                self.created_files.append(output_path)  # Track for cleanup
                 success = annotate_pdf_file(str(pdf_path), annotations, output_path)
                 self.assertTrue(success, f"Failed to create annotated PDF for {test_case['name']}")
                 print(f"✅ Annotated PDF created successfully for {test_case['name']}")
+
+    def test_peirce_note_unification_correctness(self):
+        """
+        Test that notes in the Peirce PDF are unified with the correct highlights.
+        
+        This is a regression test for the bug where notes were being unified with the wrong
+        highlights due to incorrect ordering in the PRE-STEP clippings-to-KRDS matching.
+        """
+        test_case = {
+            "name": "Peirce - The Fixation of Belief",
+            "pdf_path": self.samples_dir / "peirce-charles-fixation-belief.pdf",
+            "sdr_path": self.samples_dir / "peirce-charles-fixation-belief.sdr",
+            "clippings_path": self.samples_dir / "peirce-charles-fixation-belief-clippings.txt",
+            "book_name": "peirce-charles-fixation-belief",
+        }
+        
+        sdr_path = test_case["sdr_path"]
+        krds_file_path = None
+        
+        # Find KRDS file
+        if sdr_path.exists():
+            pds_files = list(sdr_path.glob("*.pds"))
+            if pds_files:
+                krds_file_path = str(pds_files[0])
+        
+        self.assertIsNotNone(krds_file_path, "Could not find KRDS file for Peirce test")
+        
+        # Create annotations
+        annotations = create_amazon_compliant_annotations(
+            krds_file_path,
+            str(test_case["clippings_path"]),
+            test_case["book_name"]
+        )
+        
+        # Find notes on page 3 (0-based) / page 4 (1-based)
+        notes_on_page_3 = [a for a in annotations if a['type'] == 'note' and a['pdf_page_0based'] == 3]
+        
+        # Should have exactly 1 note on page 3 (the second note "Note for a paragraph...")
+        self.assertEqual(len(notes_on_page_3), 1, 
+                        "Expected exactly 1 note on page 4 of Peirce PDF")
+        
+        note = notes_on_page_3[0]
+        
+        # The note should have highlight_content field (indicating it was unified)
+        self.assertIn('highlight_content', note,
+                     "Note should have highlight_content field (unified with highlight)")
+        
+        # The highlight_content should be "We generally know..." NOT "The Assassins..."
+        highlight_content = note.get('highlight_content', '')
+        self.assertIn('We generally know', highlight_content,
+                     f"Note should be unified with 'We generally know...' highlight, but got: {highlight_content[:50]}")
+        self.assertNotIn('Assassins', highlight_content,
+                        f"Note should NOT be unified with 'The Assassins' highlight, but got: {highlight_content[:50]}")
+        
+        # The note content should be "Note for a paragraph and one word more"
+        note_content = note.get('content', '')
+        self.assertIn('Note for a paragraph', note_content,
+                     f"Note content should be 'Note for a paragraph...', but got: {note_content[:50]}")
+        
+        print("✅ Peirce note unified with correct highlight based on Y-position ordering")
 
 
 if __name__ == "__main__":

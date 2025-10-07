@@ -186,9 +186,11 @@ class TestSnakeHighlightPattern:
     
     def test_all_highlights_have_no_content(self, peirce_pdf_path, peirce_krds_path, peirce_clippings_path, book_name, output_dir):
         """
-        Test that all highlights have no content field (Kindle distinction).
+        Test that regular highlights have no content field (Kindle distinction).
         
         Kindle differentiates between highlights (no content) and notes (with content).
+        Regular highlights should have no content.
+        Unified notes (highlights with attached notes) should have content and "Kindle Note" title.
         """
         # Parse and create annotations
         annotations = create_amazon_compliant_annotations(peirce_krds_path, peirce_clippings_path, book_name)
@@ -198,21 +200,34 @@ class TestSnakeHighlightPattern:
         output_file = output_dir / "test_no_content.pdf"
         annotate_pdf_file(peirce_pdf_path, pdf_annotations, output_path=str(output_file))
         
-        # Verify all highlights have no content
+        # Verify highlights have correct content based on type
         doc = fitz.open(str(output_file))
         
-        highlight_count = 0
+        regular_highlight_count = 0
+        unified_note_count = 0
         for page in doc:
             for annot in page.annots():
                 if annot.type[0] == 8:  # Highlight
-                    highlight_count += 1
+                    title = annot.info.get('title', '')
                     content = annot.info.get('content', '')
-                    assert content == '', (
-                        f"Highlight on page {page.number + 1} should have no content, "
-                        f"but has: {repr(content[:50])}"
-                    )
+                    
+                    # Unified notes should have "Kindle Note" title and content
+                    if title == "Kindle Note":
+                        unified_note_count += 1
+                        assert content != '', (
+                            f"Unified note on page {page.number + 1} should have content"
+                        )
+                    # Regular highlights should have "Kindle Highlight" title and NO content
+                    elif title == "Kindle Highlight":
+                        regular_highlight_count += 1
+                        assert content == '', (
+                            f"Regular highlight on page {page.number + 1} should have no content, "
+                            f"but has: {repr(content[:50])}"
+                        )
         
-        assert highlight_count > 0, "Should have at least one highlight to test"
+        # Both types should exist in peirce sample
+        assert regular_highlight_count > 0, "Should have regular highlights"
+        assert unified_note_count == 2, f"Should have exactly 2 unified notes in peirce sample, found {unified_note_count}"
         doc.close()
     
     def test_quad_objects_preserved_after_save(self, peirce_pdf_path, peirce_krds_path, peirce_clippings_path, book_name, output_dir):

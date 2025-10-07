@@ -208,6 +208,9 @@ def convert_amazon_to_pdf_annotator_format(amazon_annotations: List[Dict[str, An
             'pdf_width': ann.get('pdf_width', 0.0),
             'pdf_height': ann.get('pdf_height', 0.0),
             
+            # Unified note+highlight: pass through highlight_content field
+            'highlight_content': ann.get('highlight_content'),
+            
             # Improved coordinate system metadata (for debugging)
             'kindle_coordinates': {
                 'kindle_x': ann.get('kindle_x', 0),

@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 from src.kindle_parser.amazon_coordinate_system import create_amazon_compliant_annotations
 from src.pdf_processor.amazon_to_pdf_adapter import convert_amazon_to_pdf_annotator_format
 from src.pdf_processor.pdf_annotator import annotate_pdf_file
-from src.kindle_parser.fixed_clippings_parser import parse_myclippings_for_book
+from src.kindle_parser.clippings_parser import parse_myclippings_for_book
 
 
 def normalize_text(text: str) -> str:

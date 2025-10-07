@@ -238,6 +238,93 @@ def parse_clippings_file(file_path: str) -> Dict[str, Any]:
     return parser.parse()
 
 
+def parse_myclippings_for_book(clippings_file: str, book_name: str) -> List[Dict[str, Any]]:
+    """
+    Parse MyClippings.txt and extract entries for a specific book.
+    
+    This is a specialized function for matching KRDS data to MyClippings entries.
+    It handles case-insensitive matching, page range extraction, and Kindle's
+    book name normalization.
+    
+    Args:
+        clippings_file: Path to MyClippings.txt file
+        book_name: Book name to search for (can be PDF filename)
+    
+    Returns:
+        List of clipping entries with:
+            - type: 'highlight' or 'note'
+            - pdf_page: 1-based page number (first page from ranges)
+            - content: Highlight/note text
+            - timestamp: Date added
+            - raw_meta: Original metadata line
+            - page_str: Original page string (for debugging)
+    
+    Note:
+        Kindle strips the book name at the first '.pdf' in the filename.
+        So '659ec7697e419.pdf-cdeKey_ABC.pdf' becomes '659ec7697e419' in clippings.
+        MyClippings uses 1-based page numbering.
+    """
+    with open(clippings_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    entries = content.split('==========')
+    book_entries = []
+    
+    # Normalize book name: strip at first .pdf if present
+    # This matches how Kindle stores book names in MyClippings.txt
+    normalized_book_name = book_name.split('.pdf')[0] if '.pdf' in book_name else book_name
+    
+    for entry in entries:
+        entry = entry.strip()
+        if not entry:
+            continue
+            
+        lines = entry.split('\n')
+        if len(lines) < 2:
+            continue
+            
+        title_line = lines[0].strip()
+        
+        # Check if this entry is for our book using normalized name (case-insensitive)
+        if normalized_book_name.lower() in title_line.lower():
+            meta_line = lines[1].strip()
+            
+            # FIXED: Case-insensitive regex pattern for page matching
+            page_match = re.search(r'page\s+(\d+(?:-\d+)?)', meta_line, re.IGNORECASE)
+            if not page_match:
+                continue
+            
+            page_str = page_match.group(1)
+            
+            # FIXED: Extract first page number from ranges like '5-5' or '12-15'
+            # MyClippings uses 1-based page numbering
+            if '-' in page_str:
+                pdf_page = int(page_str.split('-')[0])
+            else:
+                pdf_page = int(page_str)
+            
+            # Extract timestamp
+            date_match = re.search(r'Added on (.+)$', meta_line)
+            timestamp = date_match.group(1) if date_match else ""
+            
+            # Extract type (case-insensitive)
+            entry_type = "note" if re.search(r'note', meta_line, re.IGNORECASE) else "highlight"
+            
+            # Extract content (rest of lines)
+            content_text = '\n'.join(lines[2:]).strip() if len(lines) > 2 else ""
+            
+            book_entries.append({
+                'type': entry_type,
+                'pdf_page': pdf_page,  # This is the 1-based page from MyClippings
+                'content': content_text,
+                'timestamp': timestamp,
+                'raw_meta': meta_line,
+                'page_str': page_str  # Keep original for debugging
+            })
+    
+    return book_entries
+
+
 if __name__ == "__main__":
     # Test the parser
     import sys

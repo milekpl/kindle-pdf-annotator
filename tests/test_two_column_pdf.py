@@ -253,7 +253,7 @@ class TestTwoColumnPDF:
             print(f"  {i+1}. Type: {ann.get('type')}, Page: {ann.get('pdf_page_0based')}")
         
         # Parse MyClippings.txt separately for validation
-        from kindle_parser.fixed_clippings_parser import parse_myclippings_for_book
+        from kindle_parser.clippings_parser import parse_myclippings_for_book
         myclippings_entries = parse_myclippings_for_book(str(clippings_file), "peirce-charles-fixation-belief")
         
         print(f"\n📊 VALIDATION: KRDS vs MyClippings.txt")

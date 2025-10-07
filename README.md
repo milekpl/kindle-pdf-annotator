@@ -1,12 +1,15 @@
 # Kindle PDF Annotator
 
-A Python application to extract Kindle annotations from PDS files and embed them back into the original PDF with pixel-perfect positioning.
+A Python application to extract Kindle annotations from PDS files and embed them back into the original PDF with pixel-perfect positioning. Kindle devices do not export PDF files with annotations; instead, they create separate proprietary `.pds` and `.pdt` files that contain annotations but are incompatible with standard PDF readers. This tool bridges this gap, allowing you to view your Kindle annotations directly within any PDF viewer.
+
+The application was tested using Kindle Paperwhite (6th generation). Newer devices may require adjustments due to changes in their internal formats, and they are likely to use an internal SQlite database. This repo contains code one can use to calibrate the algorithm if needed (for this, we need a set of files with their annotations from a Kindle device).
 
 ![Screenshot](screenshot.png)
 
 ## Features
 
 - **Complete Annotation Support**: Extracts and preserves notes, highlights, and bookmarks from Kindle
+- **Intelligent Note/Highlight Unification**: Automatically merges notes with their corresponding highlights based on position matching
 - **Intelligent Text-Based Matching**: Primary strategy using normalized text search with comprehensive ligature handling
 - **Language-Independent Ligature Support**: Handles f-ligatures (ﬁ, ﬂ, ﬀ, ﬃ, ﬄ), st-ligatures (ﬆ), ae-ligatures (æ, Æ), oe-ligatures (œ, Œ)
 - **Fuzzy Matching Fallback**: Uses Levenshtein distance (85% threshold) for long texts with minor variations
@@ -16,7 +19,15 @@ A Python application to extract Kindle annotations from PDS files and embed them
 - **Correct Highlight Sizing**: Uses actual Kindle annotation dimensions instead of fixed rectangles
 - **PDF Navigation Bookmarks**: Creates real PDF bookmarks visible in all PDF viewers
 - **GUI and CLI**: Both graphical interface and command-line tool available
-- **Comprehensive Testing**: 16+ unit tests with high coverage including fuzzy matching validation
+- **Comprehensive Testing**: 140 unit tests with 41% code coverage including note unification, fuzzy matching, coordinate conversion, and multi-column layouts
+
+#### Kindle PDF with Annotations
+
+![Kindle Annotations Example](screenshot_kindle.png)
+
+#### Annotated PDF Example 
+
+![Annotated PDF Example](screenshot_pdf.png)
 
 ## Quick Start
 
@@ -95,10 +106,25 @@ python cli.py --kindle-folder "book.sdr" --pdf-file "book.pdf" --output "result.
               --clippings "MyClippings.txt" --export-json "annotations.json" --verbose
 ```
 
+## Coordinate System
+
+The tool uses a **validated coordinate conversion formula** for placing annotations:
+
+- **Formula**: `PDF_points = (KRDS_units / 100) × 72`
+- **Accuracy**: Median error of 10.94 pts (0.15 inches) validated on 346 real highlights
+- **CropBox Support**: Automatically handles cropped PDFs by subtracting crop offsets
+- **Units**: KRDS uses hundredths of an inch (100 = 1 inch), PDF uses points (72 = 1 inch)
+
+This formula was empirically validated against production-annotated PDFs and outperforms alternative coordinate systems by 26x. For technical details, see `COORDINATE_SYSTEM.md`.
+
 ## Technical Details
 
+- **Note/Highlight Unification**: Automatically merges notes with their corresponding highlights based on position matching
+  - Matches notes at highlight START or END positions (5pt tolerance)
+  - Unified annotations render as highlights with note content
+  - Preserves both highlight text and note content in PDF
 - **Text-Based Matching**: Primary annotation strategy using normalized full-page text extraction
-- **Ligature Normalization**: Strips all ligatures to first character (ﬁ→f, æ→a, œ→o, ﬆ→s) matching Kindle's MyClippings.txt behavior
+- **Ligature Normalization**: Strips all ligatures to first character (ﬁ→f, æ→a, œ→o, ﬆ→s) matching Kindle's `My Clippings.txt` behavior
 - **Text Normalization Pipeline**:
   1. Ligature stripping (all common types)
   2. Hyphenation removal at line breaks
@@ -112,9 +138,21 @@ python cli.py --kindle-folder "book.sdr" --pdf-file "book.pdf" --output "result.
 
 ## Testing
 
+The project includes **138 comprehensive unit tests** covering:
+- Note/highlight unification (start/end position matching, tolerance validation)
+- Coordinate system conversion and CropBox handling
+- KRDS parser functionality
+- Text-based matching with ligature normalization
+- Fuzzy matching with Levenshtein distance
+- Multi-line and multi-column highlight support
+- Complex "snake" highlight patterns
+
 ```bash
-# Run all tests
+# Run all tests (138 tests)
 python -m pytest tests/ -v
+
+# Run core functionality tests
+python -m pytest tests/test_unified_note_rendering.py tests/test_note_highlight_unification.py tests/test_cropbox_coordinate_conversion.py -v
 
 # Test specific functionality
 python tests/test_page_9_highlights.py
@@ -122,6 +160,9 @@ python tests/test_krds_parser.py
 
 # Test ligature handling and fuzzy matching
 python -m pytest tests/test_fuzzy_ligature_matching.py -v -s
+
+# Test note/highlight unification
+python -m pytest tests/test_unified_note_rendering.py -v
 
 # Test complex highlight patterns
 python -m pytest tests/test_snake_highlight.py -v

@@ -47,26 +47,25 @@ def main():
     pdf_name = Path(args.pdf_file).stem
     print(f"Processing annotations for: {pdf_name}")
     
-    # Find KRDS file (.pds or .pdt)
+    # Find KRDS file (.pds only - .pdt files contain no annotations)
     kindle_folder_path = Path(args.kindle_folder)
-    krds_files = list(kindle_folder_path.glob("*.pds")) + list(kindle_folder_path.glob("*.pdt"))
+    krds_files = list(kindle_folder_path.glob("*.pds"))
     
     # Also check .sdr subdirectories
     for sdr_dir in kindle_folder_path.glob("*.sdr"):
         if sdr_dir.is_dir():
             krds_files.extend(sdr_dir.glob("*.pds"))
-            krds_files.extend(sdr_dir.glob("*.pdt"))
     
     if not krds_files:
-        print(f"Error: No KRDS files (.pds or .pdt) found in {args.kindle_folder}")
-        print("Expected format: <book-name>.pdf-cdeKey_<key>.sdr/ or .pds/.pdt files in folder")
+        print(f"Error: No KRDS files (.pds) found in {args.kindle_folder}")
+        print("Expected format: <book-name>.pdf-cdeKey_<key>.sdr/ or .pds files in folder")
         sys.exit(1)
     
     print(f"Found {len(krds_files)} KRDS files:")
     for i, krds_file in enumerate(krds_files, 1):
         print(f"  {i}. {krds_file}")
     
-    # Find the KRDS file that matches the PDF filename
+    # Find the KRDS files that match the PDF filename
     pdf_path = Path(args.pdf_file)
     pdf_name = pdf_path.stem
     
@@ -79,12 +78,14 @@ def main():
             matching_krds.append(krds_file)
     
     if matching_krds:
-        krds_file = str(matching_krds[0])
-        print(f"Found matching KRDS file for PDF: {Path(krds_file).name}")
+        krds_files_to_process = matching_krds
+        print(f"Found {len(matching_krds)} matching KRDS files for PDF:")
+        for i, kf in enumerate(matching_krds, 1):
+            print(f"  {i}. {Path(kf).name}")
     else:
         # Fallback to first file if no match found
-        krds_file = str(krds_files[0])
-        print(f"No specific match found, using first KRDS file: {Path(krds_file).name}")
+        krds_files_to_process = [krds_files[0]]
+        print(f"No specific match found, using first KRDS file: {Path(krds_files[0]).name}")
         print(f"Warning: This KRDS file may not be for the specified PDF!")
     
     # Set up MyClippings file path
@@ -107,8 +108,8 @@ def main():
         # Extract book name from KRDS file path for matching with MyClippings
         book_name = pdf_name  # Start with PDF name
         # Try to extract from path if it follows Kindle format
-        if "cdeKey_" in krds_file:
-            parts = Path(krds_file).parent.name.split("-cdeKey_")
+        if "cdeKey_" in str(krds_files_to_process[0]):
+            parts = Path(krds_files_to_process[0]).parent.name.split("-cdeKey_")
             if parts:
                 book_name = parts[0]
         
@@ -122,6 +123,15 @@ def main():
             temp_file_created = True
         else:
             temp_file_created = False
+        
+        # For multiple KRDS files (.pds and .pdt), process the first one only
+        # as they typically contain duplicate data that gets deduplicated
+        krds_file = str(krds_files_to_process[0])
+        print(f"  Processing: {Path(krds_file).name}")
+        
+        if len(krds_files_to_process) > 1:
+            print(f"  Note: Found {len(krds_files_to_process)} KRDS files.")
+            print("  Processing first file only to avoid duplicates.")
         
         if args.learn:
             # For learning mode, we need to pass the learning output path

@@ -125,7 +125,7 @@ def collect_calibration_points_from_dataset(
     Returns list of calibration points with both Kindle and PDF coordinates.
     """
     from .krds_parser import KindleReaderDataStore
-    from .fixed_clippings_parser import parse_myclippings_for_book
+    from .clippings_parser import parse_myclippings_for_book
     
     print(f"\n📊 Collecting calibration data from: {book_name}")
     

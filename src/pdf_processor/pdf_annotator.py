@@ -107,6 +107,10 @@ class PDFAnnotator:
         
         annotation_type = annotation.get("type", "highlight").lower()
         
+        # Unified notes (notes with highlight_content) should be treated as highlights with content
+        if annotation_type == "note" and annotation.get("highlight_content"):
+            annotation_type = "highlight"
+        
         if page_num is None or page_num < 0 or page_num >= len(self.doc):
             logger.warning(f"Invalid page number: {page_num}")
             return False
@@ -131,9 +135,14 @@ class PDFAnnotator:
 
             if quads:
                 highlight = page.add_highlight_annot(quads)
-                # Kindle differentiates between highlights (no content) and notes (with content)
-                # Only set title, not content
-                highlight.set_info(title="Kindle Highlight")
+                # ONLY set content for unified note+highlight pairs (which have highlight_content field)
+                # Regular highlights should have NO content
+                if annotation.get('highlight_content') and content and content.strip():
+                    # This is a unified note - add the note content
+                    highlight.set_info(title="Kindle Note", content=content)
+                else:
+                    # Regular highlight - no content
+                    highlight.set_info(title="Kindle Highlight")
                 highlight.set_colors(stroke=[1, 1, 0])  # Yellow
                 highlight.update()
                 return True

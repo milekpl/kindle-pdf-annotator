@@ -448,9 +448,9 @@ class KindlePDFAnnotatorGUI:
         def add_from_folder(folder: Path) -> None:
             if not folder.exists() or not folder.is_dir():
                 return
-            for pattern in ("*.pds", "*.pdt"):
-                for file_path in sorted(folder.glob(pattern)):
-                    add_file(file_path)
+            # Only process .pds files - .pdt files contain no annotations
+            for file_path in sorted(folder.glob("*.pds")):
+                add_file(file_path)
 
         pdf_filename = pdf_path.name
         normalized_pdf_name = self._normalize_token(pdf_filename)
@@ -458,8 +458,8 @@ class KindlePDFAnnotatorGUI:
 
         # 1. Check for sibling .sdr folder or matching KRDS files next to the PDF
         add_from_folder(pdf_path.parent / f"{pdf_filename}.sdr")
-        for suffix in (".pds", ".pdt"):
-            add_file(pdf_path.with_suffix(suffix))
+        # Only check .pds files - .pdt files contain no annotations
+        add_file(pdf_path.with_suffix(".pds"))
 
         # 2. Search Kindle folder for matching .sdr directories
         for sdr_dir in kindle_path.glob("*.sdr"):
@@ -470,11 +470,11 @@ class KindlePDFAnnotatorGUI:
                 break
 
         # 3. Fallback: search entire Kindle folder for matching KRDS files
+        # Only search .pds files - .pdt files contain no annotations
         if not candidates:
-            for pattern in ("*.pds", "*.pdt"):
-                for krds_file in kindle_path.rglob(pattern):
-                    if self._normalize_token(krds_file.stem) in (normalized_pdf_name, normalized_pdf_stem):
-                        add_file(krds_file)
+            for krds_file in kindle_path.rglob("*.pds"):
+                if self._normalize_token(krds_file.stem) in (normalized_pdf_name, normalized_pdf_stem):
+                    add_file(krds_file)
 
         return candidates
 

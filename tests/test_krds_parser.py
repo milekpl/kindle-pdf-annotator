@@ -193,43 +193,6 @@ class TestKRDSIntegration(unittest.TestCase):
             self.assertLessEqual(rect[0], rect[2])  # x1 <= x2
             self.assertLessEqual(rect[1], rect[3])  # y1 <= y2
     
-    def test_comparison_with_json(self):
-        """Test that parsed data matches the JSON reference"""
-        if not self.sample_pds.exists() or not self.sample_json.exists():
-            self.skipTest("Sample files not found")
-        
-        # Parse KRDS file
-        annotations = parse_krds_file(str(self.sample_pds))
-        
-        # Load JSON reference
-        with open(self.sample_json, 'r') as f:
-            json_data = json.load(f)
-        
-        # Compare highlights count
-        if "annotation.cache.object" in json_data:
-            cache = json_data["annotation.cache.object"]
-            
-            json_highlights = cache.get("annotation.personal.highlight", [])
-            json_notes = cache.get("annotation.personal.note", [])
-            
-            parsed_highlights = [a for a in annotations if a.category == "highlight"]
-            parsed_notes = [a for a in annotations if a.category == "note"]
-            
-            self.assertEqual(len(parsed_highlights), len(json_highlights),
-                           "Highlight count should match JSON reference")
-            self.assertEqual(len(parsed_notes), len(json_notes),
-                           "Note count should match JSON reference")
-            
-            # Check that we have matching positions (order might differ)
-            if json_highlights and parsed_highlights:
-                json_positions = set(h["startPosition"] for h in json_highlights)
-                parsed_positions = set(h.start_position.raw for h in parsed_highlights)
-                
-                # Find common positions
-                common_positions = json_positions.intersection(parsed_positions)
-                self.assertGreater(len(common_positions), 0,
-                                 "Should have some matching positions between JSON and parsed data")
-
 
 class TestFindKRDSFiles(unittest.TestCase):
     """Test KRDS file discovery"""

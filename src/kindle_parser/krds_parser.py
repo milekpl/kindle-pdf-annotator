@@ -17,7 +17,21 @@ logger = logging.getLogger(__name__)
 
 
 class KindlePosition:
-    """Represents a Kindle position with page and coordinate information"""
+    """
+    Represents a Kindle position with page and coordinate information.
+    
+    ⚠️ IMPORTANT: KRDS uses 0-based page numbering (first page = 0).
+    To convert to PDF page number (1-based): pdf_page = krds_page + 1
+    To convert to MyClippings page number (1-based): myclippings_page = krds_page + 1
+    
+    Attributes:
+        page (int): 0-based page number from KRDS
+        x, y (int): Coordinates in KRDS units (not PDF points)
+        width, height (int): Dimensions in KRDS units
+        sequence (int): Sequence number for ordering highlights on same page
+        char_pos (int): Character position in the text
+        valid (bool): Whether the position data was parsed successfully
+    """
 
     def __init__(self, position_string: str):
         self.raw = position_string
