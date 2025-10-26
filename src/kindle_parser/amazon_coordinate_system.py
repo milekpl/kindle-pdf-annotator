@@ -298,6 +298,149 @@ def word_based_prefix_search(
     return None
 
 
+def filter_quads_by_proximity(quads: List, expected_pdf_x: float, expected_pdf_y: float, search_text_length: int = None) -> List:
+    """
+    Filter quads to keep only those closest to the expected Kindle coordinates.
+    
+    This prevents greedy matching where single-letter highlights match throughout the page.
+    Instead, we pick the match closest to where Kindle said the highlight should be.
+    
+    CRITICAL: For single-character highlights (like "a", "I"), return ONLY the single closest quad.
+    Kindle highlights complete words at word boundaries, so a single character is a complete word.
+    
+    Args:
+        quads: List of quad objects from page.search_for()
+        expected_pdf_x: Expected X coordinate from Kindle (converted to PDF space)
+        expected_pdf_y: Expected Y coordinate from Kindle (converted to PDF space)
+        search_text_length: Length of the original search text (to detect single-char searches)
+        
+    Returns:
+        Filtered list containing only quads from the closest match
+    """
+    if not quads:
+        return quads
+    
+    if len(quads) == 1:
+        return quads
+    
+    # For intentional single-character searches (search_text_length <= 3), 
+    # AND when we have many matches (>50), return ONLY the single closest quad.
+    # This prevents highlighting all instances of "a", "I", "the" on the page.
+    # (Kindle highlights complete words, so single char = complete word, not part of a longer word)
+    if search_text_length is not None and search_text_length <= 3 and len(quads) > 50:
+        # Find the single closest quad
+        best_quad = None
+        min_distance = float('inf')
+        
+        for quad in quads:
+            rect = quad.rect if hasattr(quad, 'rect') else fitz.Rect(quad)
+            distance = ((rect.x0 - expected_pdf_x) ** 2 + (rect.y0 - expected_pdf_y) ** 2) ** 0.5
+            
+            if distance < min_distance:
+                min_distance = distance
+                best_quad = quad
+        
+        if best_quad:
+            print(f"     → Filtered {len(quads)} occurrences to 1 single closest match "
+                  f"(distance: {min_distance:.1f} points, treating as complete word)")
+            return [best_quad]
+    
+    # For longer text, group nearby quads to handle multi-line highlights
+    # Strategy: Find the SINGLE quad (or group of adjacent quads) closest to expected position
+    # Group quads by their physical location (cluster nearby quads together)
+    # This handles multi-line highlights while separating different occurrences
+    clusters = []
+    for quad in quads:
+        rect = quad.rect if hasattr(quad, 'rect') else fitz.Rect(quad)
+        
+        # Try to add to existing cluster
+        # Requirements for same cluster (VERY STRICT for short text):
+        # 1. On same line (Y positions within 3 points) AND horizontally adjacent (within 5 points) OR
+        # 2. On next line (Y difference 10-25 points) AND horizontally overlapping/adjacent (within 10 points)
+        added = False
+        for cluster in clusters:
+            cluster_rect = cluster['rect']
+            
+            # Check if on same line and horizontally adjacent
+            on_same_line = abs(rect.y0 - cluster_rect.y0) < 3
+            horizontally_adjacent_same_line = (
+                on_same_line and 
+                (abs(rect.x0 - cluster_rect.x1) < 5 or abs(rect.x1 - cluster_rect.x0) < 5)
+            )
+            
+            # Check if on next line with horizontal proximity
+            y_diff = abs(rect.y0 - cluster_rect.y1)
+            horizontally_close_next_line = (
+                # Overlapping X ranges or very close
+                not (rect.x1 < cluster_rect.x0 - 10 or rect.x0 > cluster_rect.x1 + 10)
+            )
+            # Line spacing can be as small as -3 (slightly overlapping) to 25 points
+            on_adjacent_line = (-3 <= y_diff <= 25) and horizontally_close_next_line
+            
+            if horizontally_adjacent_same_line or on_adjacent_line:
+                cluster['quads'].append(quad)
+                cluster['rect'] = cluster['rect'] | rect  # Union the rectangles
+                added = True
+                break
+        
+        if not added:
+            # Create new cluster
+            clusters.append({
+                'quads': [quad],
+                'rect': rect
+            })
+    
+    # Find cluster(s) closest to expected coordinates
+    # For two-column layouts, we may need to combine multiple clusters that are on the same
+    # horizontal line but in different columns (vertically overlapping).
+    # However, separate occurrences of the same word on different lines should NOT be combined.
+    best_cluster = None
+    min_distance = float('inf')
+    
+    cluster_distances = []
+    for cluster in clusters:
+        rect = cluster['rect']
+        # Calculate distance from expected position (top-left corner of highlight)
+        # to cluster's top-left corner
+        distance = ((rect.x0 - expected_pdf_x) ** 2 + (rect.y0 - expected_pdf_y) ** 2) ** 0.5
+        cluster_distances.append((distance, cluster))
+        
+        if distance < min_distance:
+            min_distance = distance
+            best_cluster = cluster
+    
+    if best_cluster:
+        # Check if there are other clusters that vertically overlap with the best cluster
+        # This indicates column-spanning text (e.g., right column → left column)
+        # Vertical overlap means they're on the same horizontal line, just different columns
+        best_rect = best_cluster['rect']
+        combined_quads = list(best_cluster['quads'])
+        
+        for distance, cluster in cluster_distances:
+            if cluster == best_cluster:
+                continue
+            
+            rect = cluster['rect']
+            # Check for vertical overlap: clusters share some vertical space
+            # This means they're on the same line(s), just in different horizontal positions
+            vertical_overlap = not (rect.y1 < best_rect.y0 or rect.y0 > best_rect.y1)
+            
+            # Also check reasonable distance from expected coords
+            within_reasonable_distance = distance < 300  # Within 300 points of expected coords
+            
+            if vertical_overlap and within_reasonable_distance:
+                print(f"     → Combining clusters: vertically overlapping (column-spanning text)")
+                print(f"       Best cluster: y={best_rect.y0:.1f}-{best_rect.y1:.1f}, x={best_rect.x0:.1f}-{best_rect.x1:.1f}")
+                print(f"       Additional:  y={rect.y0:.1f}-{rect.y1:.1f}, x={rect.x0:.1f}-{rect.x1:.1f}")
+                combined_quads.extend(cluster['quads'])
+        
+        print(f"     → Filtered {len(quads)} quads to {len(combined_quads)} closest to expected position "
+              f"(distance: {min_distance:.1f} points)")
+        return combined_quads
+    
+    return quads
+
+
 def convert_kindle_to_pdf_coordinates(kindle_x: float, kindle_y: float, pdf_rect: Optional[Any] = None, cropbox: Optional[Any] = None) -> Tuple[float, float]:
     """
     Convert Kindle KRDS coordinates to PDF points using the validated inches-based formula.
@@ -847,11 +990,76 @@ def create_amazon_compliant_annotations(
             sorted_highlights = sorted(page_highlights, key=lambda h: h.start_position.y)
             page_clips = clips_by_page[page]
             
-            # Match in order: first highlight gets first clip, etc.
-            for i, highlight in enumerate(sorted_highlights):
-                if i < len(page_clips):
-                    highlight._matched_content = page_clips[i].get('content', '')
-                    matched_count += 1
+            # CRITICAL FIX: If we have the same number of highlights and clippings on this page,
+            # match them by PROXIMITY (closest clipping to each highlight) rather than by order.
+            # This handles cases where timestamp order doesn't match reading order.
+            if len(sorted_highlights) == len(page_clips):
+                # Convert Kindle coordinates to PDF for comparison
+                highlight_positions = []
+                for h in sorted_highlights:
+                    pdf_x, pdf_y = convert_kindle_to_pdf_coordinates(h.start_position.x, h.start_position.y, actual_pdf_rect, None)
+                    highlight_positions.append((h, pdf_x, pdf_y))
+                
+                # Match each highlight to its nearest clipping by text search position
+                # We'll do text search to find where each clipping's text actually appears
+                if pdf_doc and page < len(pdf_doc):
+                    pdf_page = pdf_doc[page]
+                    
+                    # Find position of each clipping's text on the page
+                    clip_positions = []
+                    for clip in page_clips:
+                        content = clip.get('content', '').strip()
+                        if content:
+                            # Search for this text on the page
+                            quads = pdf_page.search_for(content, quads=True)
+                            if quads:
+                                # Find the quad closest to any highlight position
+                                best_pos = None
+                                min_dist = float('inf')
+                                for quad in quads:
+                                    rect = quad.rect if hasattr(quad, 'rect') else fitz.Rect(quad)
+                                    # Check distance to all highlights
+                                    for h, hx, hy in highlight_positions:
+                                        dist = ((rect.x0 - hx)**2 + (rect.y0 - hy)**2)**0.5
+                                        if dist < min_dist:
+                                            min_dist = dist
+                                            best_pos = (rect.x0, rect.y0)
+                                
+                                clip_positions.append((clip, best_pos[0] if best_pos else 0, best_pos[1] if best_pos else 0))
+                            else:
+                                clip_positions.append((clip, 0, 0))
+                        else:
+                            clip_positions.append((clip, 0, 0))
+                    
+                    # Now match each highlight to its nearest clipping
+                    used_clips = set()
+                    for h, hx, hy in highlight_positions:
+                        best_clip = None
+                        min_dist = float('inf')
+                        for i, (clip, cx, cy) in enumerate(clip_positions):
+                            if i in used_clips:
+                                continue
+                            dist = ((cx - hx)**2 + (cy - hy)**2)**0.5
+                            if dist < min_dist:
+                                min_dist = dist
+                                best_clip = (i, clip)
+                        
+                        if best_clip:
+                            used_clips.add(best_clip[0])
+                            h._matched_content = best_clip[1].get('content', '')
+                            matched_count += 1
+                else:
+                    # Fallback to order-based matching if PDF not available
+                    for i, highlight in enumerate(sorted_highlights):
+                        if i < len(page_clips):
+                            highlight._matched_content = page_clips[i].get('content', '')
+                            matched_count += 1
+            else:
+                # Different counts - fall back to order-based matching
+                for i, highlight in enumerate(sorted_highlights):
+                    if i < len(page_clips):
+                        highlight._matched_content = page_clips[i].get('content', '')
+                        matched_count += 1
         
         total_clips = len(highlight_clips)
         print(f"   ✅ Matched {matched_count}/{total_clips} clipping highlights to KRDS highlights")
@@ -1288,6 +1496,26 @@ def create_amazon_compliant_annotations(
                                     break
 
                     if quads:
+                        # CRITICAL FIX: If we have multiple matches (greedy matching bug),
+                        # filter to keep only the match closest to the Kindle coordinates
+                        if len(quads) > 1:
+                            # Find the matching annotation from STEP 1 to get expected coordinates
+                            content_norm = normalize_text(content)
+                            expected_pdf_x = None
+                            expected_pdf_y = None
+                            
+                            for ann in coordinate_based_annotations:
+                                if ann['pdf_page_0based'] == pdf_page:
+                                    ann_content = ann.get('highlight_content') or ann.get('content', '')
+                                    if normalize_text(ann_content) == content_norm:
+                                        expected_pdf_x = ann['pdf_x']
+                                        expected_pdf_y = ann['pdf_y']
+                                        break
+                            
+                            # Filter quads by proximity to expected coordinates
+                            if expected_pdf_x is not None and expected_pdf_y is not None:
+                                quads = filter_quads_by_proximity(quads, expected_pdf_x, expected_pdf_y, len(search_text))
+                        
                         # Quads is a list of quad objects (each is a sequence of 4 points)
                         # Convert to rectangles
                         all_rects = []
@@ -1299,7 +1527,7 @@ def create_amazon_compliant_annotations(
                                 # Fallback: try to convert quad to rect
                                 try:
                                     all_rects.append(fitz.Rect(quad))
-                                except:
+                                except Exception:
                                     pass
                         
                         if all_rects:
@@ -1396,7 +1624,9 @@ def create_amazon_compliant_annotations(
             print("   ⚠️  No PDF path available for text-based matching, using coordinate-based approach...")
             corrected_annotations = coordinate_based_annotations
     else:
-        print("\n   ℹ️  No clippings data available, using coordinate-based approach...")
+        print("\n   ⚠️  WARNING: No clippings data available, using coordinate-based approach...")
+        print("   📌 NOTE: KRDS coordinates may only cover the beginning of highlights.")
+        print("   💡 TIP: Provide MyClippings.txt with --clippings for full-text highlighting!")
         corrected_annotations = coordinate_based_annotations
 
     # Note: MyClippings content is used for ground truth/testing only

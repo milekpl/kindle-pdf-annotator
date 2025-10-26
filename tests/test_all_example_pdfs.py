@@ -51,6 +51,15 @@ class TestHighlightLocationsAndSizes(unittest.TestCase):
                 "sdr_path": self.samples_dir / "page_136_shea.sdr",
                 "clippings_path": self.samples_dir / "page_136_shea-clippings.txt",
                 "book_name": "page_136_shea",
+            },
+            {
+                "name": "Page 2 Paper (Greedy Matching Bug Test)",
+                "pdf_path": self.samples_dir / "page_2_paper.pdf",
+                "sdr_path": self.samples_dir / "page_2_paper.sdr",
+                "clippings_path": self.samples_dir / "page_2_paper-clippings.txt",
+                "book_name": "page_2_paper",
+                "expected_highlight_count": 2,  # Should be exactly 2, not dozens
+                "expected_highlight_contents": ["the", "a"],  # Must match actual highlighted text
             }
         ]
     
@@ -108,6 +117,22 @@ class TestHighlightLocationsAndSizes(unittest.TestCase):
                 
                 # Check that highlights exist
                 self.assertGreater(len(highlights), 0, f"No highlights found for {test_case['name']}")
+                
+                # Check expected highlight count if specified (for greedy matching bug test)
+                if 'expected_highlight_count' in test_case:
+                    expected_count = test_case['expected_highlight_count']
+                    self.assertEqual(len(highlights), expected_count,
+                                   f"Expected exactly {expected_count} highlights for {test_case['name']}, but found {len(highlights)}. "
+                                   f"This likely indicates a greedy matching bug where single-letter highlights match throughout the page.")
+                
+                # Check expected highlight contents if specified (validates correct matching)
+                if 'expected_highlight_contents' in test_case:
+                    expected_contents = test_case['expected_highlight_contents']
+                    actual_contents = [h.get('content', '').strip() for h in highlights]
+                    self.assertEqual(sorted(actual_contents), sorted(expected_contents),
+                                   f"Highlight contents don't match for {test_case['name']}. "
+                                   f"Expected: {expected_contents}, Got: {actual_contents}. "
+                                   f"This indicates highlights are being matched to wrong text locations.")
                 
                 # Check that highlights have appropriate locations and sizes
                 for highlight in highlights:
