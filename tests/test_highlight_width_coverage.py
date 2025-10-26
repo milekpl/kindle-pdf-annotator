@@ -175,7 +175,6 @@ def test_highlight_width_coverage():
     
     if coverage_ratio >= 0.8:
         print(f"\n✅ Test passed with {coverage_ratio:.1%} coverage")
-        return output_file
     else:
         raise AssertionError(f"Highlight coverage is too low: {coverage_ratio:.1%}. Expected >= 80%")
 

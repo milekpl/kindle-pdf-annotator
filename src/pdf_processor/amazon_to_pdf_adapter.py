@@ -245,7 +245,7 @@ def test_amazon_to_pdf_conversion():
         'pdf_x': 194.8,
         'pdf_y': 356.0,
         'content': 'Whom',
-        'source': 'json_note_amazon_converted',
+        'source': 'kindle_note',
         'timestamp': '2025-09-02T08:03:25.232000'
     }
     

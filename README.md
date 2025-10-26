@@ -19,7 +19,7 @@ The application was tested using Kindle Paperwhite (6th generation). Newer devic
 - **Correct Highlight Sizing**: Uses actual Kindle annotation dimensions instead of fixed rectangles
 - **PDF Navigation Bookmarks**: Creates real PDF bookmarks visible in all PDF viewers
 - **GUI and CLI**: Both graphical interface and command-line tool available
-- **Comprehensive Testing**: 140 unit tests with 41% code coverage including note unification, fuzzy matching, coordinate conversion, and multi-column layouts
+- **Comprehensive Testing**: 134 unit tests covering note unification, coordinate conversion, text matching, multi-column layouts, and end-to-end integration
 
 #### Kindle PDF with Annotations
 
@@ -55,15 +55,13 @@ kindle-pdf-annotator/
 ├── cli.py                         # Command-line interface
 ├── src/
 │   ├── kindle_parser/             # Kindle file parsing modules
-│   │   ├── amazon_coordinate_system.py    # Core coordinate conversion (Amazon system)
-│   │   ├── fixed_clippings_parser.py      # MyClippings.txt parser (working)
-│   │   ├── clippings_parser.py            # Legacy clippings parser (for tests)
-│   │   ├── krds_parser.py                 # KRDS file parser (notes, highlights, bookmarks)
+│   │   ├── amazon_coordinate_system.py    # Core coordinate conversion & text matching
+│   │   ├── clippings_parser.py            # MyClippings.txt parser
+│   │   ├── krds_parser.py                 # KRDS file parser (PDS/PDT)
 │   │   ├── pds_parser.py                  # PDS file parser
 │   │   └── pdt_parser.py                  # PDT file parser
 │   ├── pdf_processor/             # PDF annotation creation
 │   │   ├── amazon_to_pdf_adapter.py       # Convert to PDF annotator format
-│   │   ├── annotation_mapper.py           # Legacy coordinate mapping
 │   │   ├── column_aware_highlighting.py   # Multi-column layout support
 │   │   └── pdf_annotator.py               # PDF annotation creation
 │   ├── gui/                       # GUI components
@@ -71,18 +69,21 @@ kindle-pdf-annotator/
 │   └── utils/                     # Utility modules
 │       ├── file_utils.py                  # File handling utilities
 │       └── location_encoder.py            # Location encoding utilities
-├── tests/                         # Unit tests (comprehensive coverage)
+├── tests/                         # Unit tests (134 tests)
+│   ├── test_integration_end_to_end.py     # End-to-end pipeline tests
+│   ├── test_note_highlight_unification.py # Note/highlight merging tests
+│   ├── test_cropbox_coordinate_conversion.py # CropBox handling tests
 │   ├── test_krds_parser.py                # KRDS parser tests
 │   ├── test_page_9_highlights.py          # Core functionality test
-│   ├── test_two_column_pdf.py             # Multi-column and bookmark tests
+│   ├── test_highlighted_text_validation.py # Text coverage validation
 │   ├── test_multi_line_highlight.py       # Multi-line annotation tests
 │   ├── test_snake_highlight.py            # Complex highlight tests
 │   └── test_parsers.py                    # Legacy parser tests
 ├── scripts/                       # Development and debugging tools
+│   ├── debug_krds.py                     # KRDS file debugging
 │   ├── diagnose_imports.py               # Import diagnostics
 │   ├── dump_pdf_tokens.py               # PDF content analysis
-│   ├── find_content_in_pdf.py           # PDF text search
-│   └── inspect_norm.py                   # Coordinate normalization
+│   └── find_content_in_pdf.py           # PDF text search
 ├── examples/sample_data/          # Sample Kindle files for testing
 └── LICENSE                        # GPL v3 license
 ```

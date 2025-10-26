@@ -60,12 +60,15 @@ class TestTwoColumnPDF:
         assert len(highlights) > 0, "Should have highlights"
         assert len(notes) > 0, "Should have notes"
         # Note: bookmarks might be 0 if not supported by current parser
-        
-        return annotations
     
     def test_highlight_page_distribution(self):
         """Test that highlights are distributed across expected pages"""
-        annotations = self.test_parse_annotations_from_krds()
+        # Parse annotations locally
+        annotations = create_amazon_compliant_annotations(
+            str(self.krds_file), 
+            None,  # No MyClippings.txt for this test
+            "peirce-charles-fixation-belief"
+        )
         highlights = [ann for ann in annotations if ann.get('type') == 'highlight']
         
         # Group highlights by page
@@ -93,7 +96,12 @@ class TestTwoColumnPDF:
     
     def test_note_page_distribution(self):
         """Test that notes are on expected pages"""
-        annotations = self.test_parse_annotations_from_krds()
+        # Parse annotations locally
+        annotations = create_amazon_compliant_annotations(
+            str(self.krds_file), 
+            None,  # No MyClippings.txt for this test
+            "peirce-charles-fixation-belief"
+        )
         notes = [ann for ann in annotations if ann.get('type') == 'note']
         
         # Group notes by page
@@ -160,7 +168,12 @@ class TestTwoColumnPDF:
     
     def test_create_annotated_pdf(self):
         """Test creating annotated PDF with two-column awareness"""
-        amazon_annotations = self.test_parse_annotations_from_krds()
+        # Parse annotations locally
+        amazon_annotations = create_amazon_compliant_annotations(
+            str(self.krds_file), 
+            None,  # No MyClippings.txt for this test
+            "peirce-charles-fixation-belief"
+        )
         
         # Convert Amazon annotations to PDF annotator format
         from pdf_processor.amazon_to_pdf_adapter import convert_amazon_to_pdf_annotator_format
@@ -189,12 +202,36 @@ class TestTwoColumnPDF:
         assert output_file.exists(), f"Output file should exist: {output_file}"
         
         print(f"   ✅ Annotated PDF saved: {output_file}")
-        
-        return output_file
     
     def test_verify_annotations_in_output(self):
         """Verify annotations were properly added to output PDF"""
-        output_file = self.test_create_annotated_pdf()
+        # Create annotated PDF locally
+        amazon_annotations = create_amazon_compliant_annotations(
+            str(self.krds_file), 
+            None,  # No MyClippings.txt for this test
+            "peirce-charles-fixation-belief"
+        )
+        
+        # Convert Amazon annotations to PDF annotator format
+        from pdf_processor.amazon_to_pdf_adapter import convert_amazon_to_pdf_annotator_format
+        annotations = convert_amazon_to_pdf_annotator_format(amazon_annotations)
+        
+        output_file = self.output_dir / "peirce_annotated.pdf"
+        
+        # Create PDF annotator
+        annotator = PDFAnnotator(str(self.pdf_file))
+        assert annotator.open_pdf(), "Should successfully open PDF"
+        
+        # Add annotations
+        added_count = annotator.add_annotations(annotations)
+        assert added_count > 0, "Should successfully add at least some annotations"
+        
+        # Save annotated PDF
+        success = annotator.save_pdf(str(output_file))
+        annotator.close_pdf()
+        
+        assert success, "Should successfully save annotated PDF"
+        assert output_file.exists(), f"Output file should exist: {output_file}"
         
         import fitz
         doc = fitz.open(str(output_file))
@@ -286,7 +323,6 @@ class TestTwoColumnPDF:
         assert len(myclippings_entries) >= 8, f"Should parse reasonable number from MyClippings, got {len(myclippings_entries)}"
         
         print("✅ KRDS extraction validation passed - content is authoritative and complete")
-        return annotations, myclippings_entries
     
     def test_bookmark_processing(self):
         """Test that bookmarks are properly stored as PDF navigation bookmarks (same as CLI)"""
@@ -349,7 +385,33 @@ class TestTwoColumnPDF:
     
     def test_column_aware_highlighting(self):
         """Test that multi-line highlights respect column boundaries"""
-        output_file = self.test_create_annotated_pdf()
+        # Create annotated PDF locally
+        amazon_annotations = create_amazon_compliant_annotations(
+            str(self.krds_file), 
+            None,  # No MyClippings.txt for this test
+            "peirce-charles-fixation-belief"
+        )
+        
+        # Convert Amazon annotations to PDF annotator format
+        from pdf_processor.amazon_to_pdf_adapter import convert_amazon_to_pdf_annotator_format
+        annotations = convert_amazon_to_pdf_annotator_format(amazon_annotations)
+        
+        output_file = self.output_dir / "peirce_annotated.pdf"
+        
+        # Create PDF annotator
+        annotator = PDFAnnotator(str(self.pdf_file))
+        assert annotator.open_pdf(), "Should successfully open PDF"
+        
+        # Add annotations
+        added_count = annotator.add_annotations(annotations)
+        assert added_count > 0, "Should successfully add at least some annotations"
+        
+        # Save annotated PDF
+        success = annotator.save_pdf(str(output_file))
+        annotator.close_pdf()
+        
+        assert success, "Should successfully save annotated PDF"
+        assert output_file.exists(), f"Output file should exist: {output_file}"
         
         import fitz
         doc = fitz.open(str(output_file))

@@ -134,7 +134,7 @@ def test_highlight_positions():
         if not found_match:
             print(f"   ✗ Page {expected['page'] + 1}: '{expected['text'][:30]}...' - NO MATCHING HIGHLIGHT!")
             print(f"      Expected at: {expected['rect']}")
-            print(f"      Available highlights on page:")
+            print("      Available highlights on page:")
             for annot in annotations:
                 if annot.type[0] == 8:
                     print(f"         - {annot.rect}")
@@ -146,16 +146,15 @@ def test_highlight_positions():
     print("\n" + "=" * 70)
     if all_correct and total_checked > 0:
         print(f"✅ SUCCESS: All {total_checked} highlights are correctly positioned!")
-        return True
     else:
-        print(f"❌ FAILURE: Highlights are NOT at expected positions!")
+        print("❌ FAILURE: Highlights are NOT at expected positions!")
         print("\n🔍 DEBUGGING INFO:")
         print("   The highlights were created but may be placed incorrectly.")
         print("   Possible issues:")
         print("   - Coordinate system mismatch between annotation creation and PDF rendering")
         print("   - PDF coordinate origin (top-left vs bottom-left)")
         print("   - Incorrect rectangle calculation in pdf_annotator.py")
-        return False
+        raise AssertionError("Highlights are not at expected positions")
 
 
 if __name__ == '__main__':

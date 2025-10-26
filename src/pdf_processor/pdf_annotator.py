@@ -103,7 +103,7 @@ class PDFAnnotator:
         if page_num is None:
             page_num = annotation.get("pdf_page_0based")
         if page_num is None:
-            page_num = annotation.get("json_page_0based")
+            page_num = annotation.get("page_index")
         
         annotation_type = annotation.get("type", "highlight").lower()
         

@@ -93,14 +93,11 @@ def test_notes_with_clippings_file():
     print(f"\n{'='*80}")
     print("✅ TEST PASSED: All notes have correct content from MyClippings.txt")
     print("="*80)
-    
-    return True
 
 
 if __name__ == '__main__':
     try:
-        success = test_notes_with_clippings_file()
-        sys.exit(0 if success else 1)
+        test_notes_with_clippings_file()
     except AssertionError as e:
         print(f"\n❌ TEST FAILED: {e}")
         sys.exit(1)

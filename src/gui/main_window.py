@@ -399,7 +399,7 @@ class KindlePDFAnnotatorGUI:
                 return
             
             # Step 3: Analyze page distribution - use Amazon coordinate format
-            amazon_annotations = [a for a in annotations if a.get("source", "").startswith("json") and "amazon" in a.get("source", "")]
+            amazon_annotations = [a for a in annotations if a.get("source", "").startswith("kindle")]
             if amazon_annotations:
                 pages = [a["pdf_page_0based"] for a in amazon_annotations]
                 unique_pages = sorted(set(pages))

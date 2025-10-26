@@ -600,7 +600,7 @@ def _create_annotation_dict(
 
     return {
         'type': annotation_type,
-        'json_page_0based': json_page,
+        'page_index': json_page,
         'pdf_page_0based': json_page,
         'myclippings_page_1based': json_page + 1,
 
@@ -651,7 +651,7 @@ def _process_highlight_annotation(highlight: Any, pdf_rect: Any, cropbox: Option
         timestamp=highlight.creation_time or '',
         pdf_rect=pdf_rect,
         cropbox=cropbox,
-        source='json_highlight_amazon_converted'
+        source='kindle_highlight'
     )
 
 
@@ -674,7 +674,7 @@ def _process_note_annotation(note: Any, pdf_rect: Any, cropbox: Optional[Any] = 
         timestamp=note.creation_time or '',
         pdf_rect=pdf_rect,
         cropbox=cropbox,
-        source='json_note_amazon_converted'
+        source='kindle_note'
     )
 
 
@@ -698,7 +698,7 @@ def _process_bookmark_annotation(bookmark: Any, pdf_rect: Any, cropbox: Optional
         timestamp=bookmark.creation_time or '',
         pdf_rect=pdf_rect,
         cropbox=cropbox,
-        source='json_bookmark_amazon_converted'
+        source='kindle_bookmark'
     )
 
 
@@ -1542,7 +1542,7 @@ def create_amazon_compliant_annotations(
                             # Create annotation with QUADS for precise highlighting
                             annotation = {
                                 'type': 'highlight',
-                                'json_page_0based': pdf_page,
+                                'page_index': pdf_page,
                                 'pdf_page_0based': pdf_page,
                                 'myclippings_page_1based': pdf_page + 1,
                                 'kindle_x': 0,
