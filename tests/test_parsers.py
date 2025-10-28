@@ -13,7 +13,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from kindle_parser.pds_parser import PDSParser, parse_pds_file
-from kindle_parser.pdt_parser import PDTParser, parse_pdt_file
 from kindle_parser.clippings_parser import ClippingsParser, parse_clippings_file
 
 
@@ -64,46 +63,6 @@ class TestPDSParser(unittest.TestCase):
         test_file.write_bytes(b"test data")
         
         result = parse_pds_file(str(test_file))
-        self.assertIsInstance(result, dict)
-
-
-class TestPDTParser(unittest.TestCase):
-    """Test PDT file parser"""
-    
-    def setUp(self):
-        """Set up test fixtures"""
-        self.temp_dir = tempfile.mkdtemp()
-        self.temp_path = Path(self.temp_dir)
-    
-    def tearDown(self):
-        """Clean up test fixtures"""
-        import shutil
-        shutil.rmtree(self.temp_dir)
-    
-    def test_pdt_parser_init(self):
-        """Test PDT parser initialization"""
-        test_file = self.temp_path / "test.pdt"
-        parser = PDTParser(str(test_file))
-        
-        self.assertEqual(parser.file_path, test_file)
-        self.assertEqual(parser.text_content, "")
-        self.assertEqual(parser.annotations, [])
-    
-    def test_parse_nonexistent_file(self):
-        """Test parsing non-existent file"""
-        parser = PDTParser("nonexistent.pdt")
-        result = parser.parse()
-        
-        self.assertIn("error", result)
-        self.assertIn("text_content", result)
-        self.assertIn("annotations", result)
-    
-    def test_convenience_function(self):
-        """Test convenience function"""
-        test_file = self.temp_path / "test.pdt"
-        test_file.write_bytes(b"test data")
-        
-        result = parse_pdt_file(str(test_file))
         self.assertIsInstance(result, dict)
 
 
@@ -243,17 +202,12 @@ class TestParserIntegration(unittest.TestCase):
             f.write(b"test")
             pds_result = parse_pds_file(f.name)
         
-        with tempfile.NamedTemporaryFile(suffix='.pdt', delete=False) as f:
-            f.write(b"test")
-            pdt_result = parse_pdt_file(f.name)
-        
         with tempfile.NamedTemporaryFile(suffix='.txt', mode='w', delete=False) as f:
             f.write("test")
             f.flush()
             clippings_result = parse_clippings_file(f.name)
         
         self.assertIsInstance(pds_result, dict)
-        self.assertIsInstance(pdt_result, dict)
         self.assertIsInstance(clippings_result, dict)
         
         # Clean up

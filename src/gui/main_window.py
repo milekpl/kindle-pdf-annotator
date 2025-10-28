@@ -94,9 +94,9 @@ class KindlePDFAnnotatorGUI:
                   command=self._browse_pdf_file).grid(row=start_row+2, column=2, 
                                                      pady=2, padx=(5, 0))
         
-        # MyClippings.txt file (optional)
-        ttk.Label(parent, text="MyClippings.txt (Optional):").grid(row=start_row+3, column=0, 
-                                                                   sticky=tk.W, pady=2)
+        # MyClippings.txt file (required)
+        ttk.Label(parent, text="MyClippings.txt:").grid(row=start_row+3, column=0, 
+                                                        sticky=tk.W, pady=2)
         self.clippings_file_var = tk.StringVar()
         clippings_entry = ttk.Entry(parent, textvariable=self.clippings_file_var, width=50)
         clippings_entry.grid(row=start_row+3, column=1, sticky=(tk.W, tk.E), pady=2, padx=(5, 0))
@@ -228,6 +228,7 @@ class KindlePDFAnnotatorGUI:
             if not self.output_file_var.get():
                 output_path = str(Path(file_path).with_suffix('.annotated.pdf'))
                 self.output_file_var.set(output_path)
+                self.output_file = output_path  # Fix: Update instance variable too
     
     def _browse_clippings_file(self):
         """Browse for MyClippings.txt file"""
@@ -276,6 +277,10 @@ class KindlePDFAnnotatorGUI:
         
         if not self.pdf_file or not Path(self.pdf_file).exists():
             messagebox.showerror("Error", "Please select a valid PDF file")
+            return False
+        
+        if not self.clippings_file or not Path(self.clippings_file).exists():
+            messagebox.showerror("Error", "Please select a valid MyClippings.txt file")
             return False
         
         if not self.output_file:

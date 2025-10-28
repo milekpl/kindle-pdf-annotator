@@ -19,7 +19,7 @@ The application was tested using Kindle Paperwhite (6th generation). Newer devic
 - **Correct Highlight Sizing**: Uses actual Kindle annotation dimensions instead of fixed rectangles
 - **PDF Navigation Bookmarks**: Creates real PDF bookmarks visible in all PDF viewers
 - **GUI and CLI**: Both graphical interface and command-line tool available
-- **Comprehensive Testing**: 134 unit tests covering note unification, coordinate conversion, text matching, multi-column layouts, and end-to-end integration
+- **Comprehensive Testing**: 165 unit tests covering note unification, coordinate conversion, text matching, multi-column layouts, and end-to-end integration
 
 #### Kindle PDF with Annotations
 
@@ -58,8 +58,7 @@ kindle-pdf-annotator/
 │   │   ├── amazon_coordinate_system.py    # Core coordinate conversion & text matching
 │   │   ├── clippings_parser.py            # MyClippings.txt parser
 │   │   ├── krds_parser.py                 # KRDS file parser (PDS/PDT)
-│   │   ├── pds_parser.py                  # PDS file parser
-│   │   └── pdt_parser.py                  # PDT file parser
+│   │   └── pds_parser.py                  # PDS file parser
 │   ├── pdf_processor/             # PDF annotation creation
 │   │   ├── amazon_to_pdf_adapter.py       # Convert to PDF annotator format
 │   │   ├── column_aware_highlighting.py   # Multi-column layout support
@@ -69,7 +68,7 @@ kindle-pdf-annotator/
 │   └── utils/                     # Utility modules
 │       ├── file_utils.py                  # File handling utilities
 │       └── location_encoder.py            # Location encoding utilities
-├── tests/                         # Unit tests (134 tests)
+├── tests/                         # Unit tests (165 tests)
 │   ├── test_integration_end_to_end.py     # End-to-end pipeline tests
 │   ├── test_note_highlight_unification.py # Note/highlight merging tests
 │   ├── test_cropbox_coordinate_conversion.py # CropBox handling tests
@@ -116,7 +115,7 @@ The tool uses a **validated coordinate conversion formula** for placing annotati
 - **CropBox Support**: Automatically handles cropped PDFs by subtracting crop offsets
 - **Units**: KRDS uses hundredths of an inch (100 = 1 inch), PDF uses points (72 = 1 inch)
 
-This formula was empirically validated against production-annotated PDFs and outperforms alternative coordinate systems by 26x. For technical details, see `COORDINATE_SYSTEM.md`.
+This formula was empirically validated against production-annotated PDFs and outperforms alternative coordinate systems by 26x. For technical details, see `docs/COORDINATE_SYSTEM.md`.
 
 ## Technical Details
 
@@ -139,7 +138,7 @@ This formula was empirically validated against production-annotated PDFs and out
 
 ## Testing
 
-The project includes **138 comprehensive unit tests** covering:
+The project includes **165 comprehensive unit tests** covering:
 - Note/highlight unification (start/end position matching, tolerance validation)
 - Coordinate system conversion and CropBox handling
 - KRDS parser functionality
@@ -149,7 +148,7 @@ The project includes **138 comprehensive unit tests** covering:
 - Complex "snake" highlight patterns
 
 ```bash
-# Run all tests (138 tests)
+# Run all tests (165 tests)
 python -m pytest tests/ -v
 
 # Run core functionality tests
