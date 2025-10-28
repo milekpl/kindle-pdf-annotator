@@ -4,7 +4,7 @@ A Python application to extract Kindle annotations from PDS files and embed them
 
 The application was tested using Kindle Paperwhite (6th generation). Newer devices may require adjustments due to changes in their internal formats, and they are likely to use an internal SQlite database. This repo contains code one can use to calibrate the algorithm if needed (for this, we need a set of files with their annotations from a Kindle device).
 
-![Screenshot](screenshot.png)
+![Screenshot](https://raw.githubusercontent.com/milekpl/kindle-pdf-annotator/main/screenshot.png)
 
 ## Features
 
@@ -19,15 +19,15 @@ The application was tested using Kindle Paperwhite (6th generation). Newer devic
 - **Correct Highlight Sizing**: Uses actual Kindle annotation dimensions instead of fixed rectangles
 - **PDF Navigation Bookmarks**: Creates real PDF bookmarks visible in all PDF viewers
 - **GUI and CLI**: Both graphical interface and command-line tool available
-- **Comprehensive Testing**: 165 unit tests covering note unification, coordinate conversion, text matching, multi-column layouts, and end-to-end integration
+- **Comprehensive Testing**: 167 unit tests covering note unification, coordinate conversion, text matching, multi-column layouts, and end-to-end integration
 
 #### Kindle PDF with Annotations
 
-![Kindle Annotations Example](screenshot_kindle.png)
+![Kindle Annotations Example](https://raw.githubusercontent.com/milekpl/kindle-pdf-annotator/main/screenshot_kindle.png)
 
 #### Annotated PDF Example 
 
-![Annotated PDF Example](screenshot_pdf.png)
+![Annotated PDF Example](https://raw.githubusercontent.com/milekpl/kindle-pdf-annotator/main/screenshot_pdf.png)
 
 ## Quick Start
 
