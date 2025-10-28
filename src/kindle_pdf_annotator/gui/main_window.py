@@ -13,10 +13,10 @@ import re
 from typing import Dict, List, Any, Optional
 
 # Import our modules
-from kindle_parser.clippings_parser import parse_clippings_file
-from kindle_parser.amazon_coordinate_system import create_amazon_compliant_annotations
-from pdf_processor.amazon_to_pdf_adapter import convert_amazon_to_pdf_annotator_format
-from pdf_processor.pdf_annotator import annotate_pdf_file
+from ..kindle_parser.clippings_parser import parse_clippings_file
+from ..kindle_parser.amazon_coordinate_system import create_amazon_compliant_annotations
+from ..pdf_processor.amazon_to_pdf_adapter import convert_amazon_to_pdf_annotator_format
+from ..pdf_processor.pdf_annotator import annotate_pdf_file
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ Converts Amazon coordinate system annotations to the format expected by pdf_anno
 from typing import List, Dict, Any, Optional
 import fitz
 
-from kindle_parser.amazon_coordinate_system import convert_kindle_to_pdf_coordinates, convert_kindle_width_to_pdf, convert_kindle_height_to_pdf
+from ..kindle_parser.amazon_coordinate_system import convert_kindle_to_pdf_coordinates, convert_kindle_width_to_pdf, convert_kindle_height_to_pdf
 
 
 def convert_amazon_to_pdf_annotator_format(amazon_annotations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

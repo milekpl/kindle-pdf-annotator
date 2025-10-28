@@ -5,7 +5,7 @@ Extract Kindle annotations from PDS files and embed them into PDF files
 with pixel-perfect positioning.
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.2"
 __author__ = "Marcin Miłkowski"
 __email__ = "marcinmilkowski@gmail.com"
 __license__ = "GPL-3.0-or-later"

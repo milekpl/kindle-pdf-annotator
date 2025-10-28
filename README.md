@@ -14,7 +14,7 @@ The application was tested using Kindle Paperwhite (6th generation). Newer devic
 - **Language-Independent Ligature Support**: Handles f-ligatures (ﬁ, ﬂ, ﬀ, ﬃ, ﬄ), st-ligatures (ﬆ), ae-ligatures (æ, Æ), oe-ligatures (œ, Œ)
 - **Fuzzy Matching Fallback**: Uses Levenshtein distance (85% threshold) for long texts with minor variations
 - **Precise Amazon Coordinate System**: Converts Kindle coordinates to PDF coordinates with sub-point accuracy
-- **Multiple Input Sources**: Processes both PDS files (`.pds`) and `MyClippings.txt` 
+- **Multiple Input Sources**: Processes both PDS files (`.pds`) and `My Clippings.txt` 
 - **Accurate Positioning**: Uses precise coordinate system with 0.1-0.5 point precision
 - **Correct Highlight Sizing**: Uses actual Kindle annotation dimensions instead of fixed rectangles
 - **PDF Navigation Bookmarks**: Creates real PDF bookmarks visible in all PDF viewers

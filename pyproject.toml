@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kindle-pdf-annotator"
-version = "1.0.0"
+version = "1.0.2"
 description = "Extract Kindle annotations and embed them into PDF files with pixel-perfect positioning"
 readme = "README.md"
 requires-python = ">=3.8"
