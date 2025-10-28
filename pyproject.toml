@@ -1,0 +1,82 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kindle-pdf-annotator"
+version = "1.0.0"
+description = "Extract Kindle annotations and embed them into PDF files with pixel-perfect positioning"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {file = "LICENSE"}
+keywords = ["kindle", "pdf", "annotations", "highlights", "ebook", "converter"]
+authors = [
+    {name = "Marcin Miłkowski", email = "marcinmilkowski@gmail.com"}
+]
+maintainers = [
+    {name = "Marcin Miłkowski", email = "marcinmilkowski@gmail.com"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Utilities",
+    "Topic :: Text Processing",
+    "Topic :: Office/Business",
+    "Environment :: Console",
+    "Environment :: X11 Applications",
+]
+
+dependencies = [
+    "PyMuPDF>=1.23.0",
+    "python-dateutil>=2.8.2",
+    "chardet>=5.2.0",
+    "pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "build>=0.10.0",
+    "twine>=4.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/milekpl/kindle-pdf-annotator"
+Repository = "https://github.com/milekpl/kindle-pdf-annotator"
+Documentation = "https://github.com/milekpl/kindle-pdf-annotator/blob/main/README.md"
+"Bug Tracker" = "https://github.com/milekpl/kindle-pdf-annotator/issues"
+
+[project.scripts]
+kindle-pdf-annotator = "kindle_pdf_annotator.cli:main"
+kindle-pdf-annotator-gui = "kindle_pdf_annotator.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["kindle_pdf_annotator*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+kindle_pdf_annotator = ["*.txt", "*.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311"]
+include = '\.pyi?$'

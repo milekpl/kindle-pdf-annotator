@@ -323,9 +323,11 @@ def filter_quads_by_proximity(quads: List, expected_pdf_x: float, expected_pdf_y
     if len(quads) == 1:
         return quads
     
-    # For short text (<=8 chars), always return only the closest match or connected cluster
-    # This prevents highlighting all instances of common words like "the", "states", "context", etc.
-    if search_text_length is not None and search_text_length <= 8:
+    # For intentional single-character searches (search_text_length <= 3), 
+    # AND when we have many matches (>50), return ONLY the single closest quad.
+    # This prevents highlighting all instances of "a", "I", "the" on the page.
+    # (Kindle highlights complete words, so single char = complete word, not part of a longer word)
+    if search_text_length is not None and search_text_length <= 3 and len(quads) > 50:
         # Find the single closest quad
         best_quad = None
         min_distance = float('inf')
@@ -340,7 +342,7 @@ def filter_quads_by_proximity(quads: List, expected_pdf_x: float, expected_pdf_y
         
         if best_quad:
             print(f"     → Filtered {len(quads)} occurrences to 1 single closest match "
-                  f"(distance: {min_distance:.1f} points, short text)")
+                  f"(distance: {min_distance:.1f} points, treating as complete word)")
             return [best_quad]
     
     # For longer text, group nearby quads to handle multi-line highlights
@@ -878,132 +880,6 @@ def _deduplicate_annotations(annotations: List[Dict[str, Any]]) -> List[Dict[str
     return unique_annotations
 
 
-def _detect_page_offset(myclippings_entries, krds_highlights, pdf_doc):
-    """
-    Detect page number offset between MyClippings.txt and PDF.
-    
-    Kindle displays PDF page labels (logical page numbers) to users, and MyClippings
-    records these logical page numbers. However, KRDS uses PDF's internal page indices.
-    
-    This function checks if the PDF has page label metadata (the proper way) and falls
-    back to content-based detection if needed.
-    
-    Args:
-        myclippings_entries: List of clipping dicts with 'pdf_page' and 'content'
-        krds_highlights: List of KRDS highlight annotations
-        pdf_doc: PyMuPDF document
-        
-    Returns:
-        int: Page offset to add to clipping page numbers (e.g., +10 means clipping page 68 → PDF index 77)
-    """
-    print("\n🔍 Detecting page offset between MyClippings and PDF...")
-    
-    # PREFERRED METHOD: Check PDF page labels metadata
-    # This is what Kindle actually uses to determine page numbers
-    try:
-        labels = pdf_doc.get_page_labels()
-        if labels and len(labels) > 0:
-            print("   📋 Found PDF page labels metadata (Kindle's authoritative source)")
-            
-            # Find the main content numbering rule (usually starts with style 'D' for decimal)
-            main_rule = None
-            for label in labels:
-                if label.get('style') == 'D' and label.get('firstpagenum', 1) == 1:
-                    main_rule = label
-                    break
-            
-            if not main_rule:
-                # Fallback: use last rule with decimal numbering
-                for label in reversed(labels):
-                    if label.get('style') == 'D':
-                        main_rule = label
-                        break
-            
-            if main_rule:
-                startpage = main_rule['startpage']
-                firstpagenum = main_rule.get('firstpagenum', 1)
-                
-                # Calculate offset: PDF index - logical page number
-                # Example: PDF index 77 should show as page 68
-                # If startpage=10 and firstpagenum=1:
-                #   Logical page = (pdf_idx - startpage) + firstpagenum
-                #   For pdf_idx=77: logical = (77 - 10) + 1 = 68
-                #   Offset = pdf_idx - logical = 77 - 68 = 9
-                # But MyClippings uses 1-based page numbers, so we need:
-                #   clipping_page + offset = pdf_idx (0-based) + 1 (to 1-based)
-                #   68 + offset = 77 + 1
-                #   offset = 78 - 68 = 10
-                
-                # Calculate offset for first labeled page
-                sample_pdf_idx = startpage
-                sample_logical = firstpagenum
-                # MyClippings records 1-based logical page
-                # KRDS uses 0-based PDF index
-                # We need: myclippings_page + offset = krds_page_0based + 1
-                offset = (sample_pdf_idx + 1) - sample_logical
-                
-                print(f"   ✅ Using PDF page label rule: startpage={startpage}, firstpagenum={firstpagenum}")
-                print(f"   📐 Calculated offset: {offset:+d} pages")
-                print(f"      (MyClippings page {sample_logical} = PDF index {sample_pdf_idx} = 1-based page {sample_pdf_idx + 1})")
-                
-                return offset
-    except Exception as e:
-        print(f"   ⚠️  Could not read PDF page labels: {e}")
-    
-    # FALLBACK METHOD: Content-based detection
-    print("   Falling back to content-based offset detection...")
-    
-    # Sample up to 10 clippings with substantial content
-    sample_clippings = [
-        c for c in myclippings_entries 
-        if c.get('content') and len(c['content'].strip()) > 20 and c.get('pdf_page')
-    ][:10]
-    
-    if not sample_clippings:
-        print("   No suitable clippings for offset detection")
-        return 0
-    
-    offsets = []
-    for clip in sample_clippings:
-        claimed_page = clip['pdf_page']  # 1-based from MyClippings
-        content = clip['content'].strip()
-        
-        # Search for this content in PDF
-        found_on_page = None
-        search_text = content[:50]  # Use first 50 chars for search
-        
-        # Search in a range around the claimed page
-        search_start = max(0, claimed_page - 20)
-        search_end = min(len(pdf_doc), claimed_page + 20)
-        
-        for page_idx in range(search_start, search_end):
-            try:
-                page = pdf_doc[page_idx]
-                page_text = page.get_text()
-                if search_text.lower() in page_text.lower():
-                    found_on_page = page_idx + 1  # Convert to 1-based
-                    break
-            except Exception:
-                continue
-        
-        if found_on_page:
-            offset = found_on_page - claimed_page
-            offsets.append(offset)
-            print(f"   Clipping claims page {claimed_page}, actually on page {found_on_page} (offset: {offset:+d})")
-    
-    if not offsets:
-        print("   Could not detect offset - no clippings found in PDF")
-        return 0
-    
-    # Use the most common offset
-    from collections import Counter
-    offset_counts = Counter(offsets)
-    most_common_offset = offset_counts.most_common(1)[0][0]
-    
-    print(f"   ✅ Detected consistent offset: {most_common_offset:+d} pages")
-    return most_common_offset
-
-
 def create_amazon_compliant_annotations(
     krds_file_path: str, 
     clippings_file: Optional[str], 
@@ -1074,21 +950,6 @@ def create_amazon_compliant_annotations(
         else:
             print("   ⚠️  PDF has no pages, using defaults")
             actual_pdf_rect = fitz.Rect(0, 0, CONFIG.default_page_width, CONFIG.default_page_height)
-    
-    # CRITICAL FIX: Detect and correct page number offset between MyClippings and KRDS
-    # This handles PDFs with preliminary pages (cover, copyright, TOC) that Kindle doesn't count
-    page_offset = 0
-    if myclippings_entries and highlights and pdf_doc:
-        page_offset = _detect_page_offset(myclippings_entries, highlights, pdf_doc)
-        if page_offset != 0:
-            print(f"\n🔧 Detected page offset: {page_offset} pages")
-            print(f"   Adjusting all clipping page numbers by {page_offset}")
-            # Apply offset to all clippings
-            for entry in myclippings_entries:
-                if 'pdf_page' in entry:
-                    old_page = entry['pdf_page']
-                    entry['pdf_page'] = old_page + page_offset
-                    entry['_original_page'] = old_page  # Keep for debugging
     else:
         print("\n⚠️  Could not find PDF file, using default dimensions")
         actual_pdf_rect = fitz.Rect(0, 0, CONFIG.default_page_width, CONFIG.default_page_height)
@@ -1758,67 +1619,6 @@ def create_amazon_compliant_annotations(
 
             if updated_count > 0:
                 print(f"   ✅ Text-based matching updated {updated_count} annotations with precise coordinates")
-            
-            # STEP 4: For annotations without precise_quads, extract text from PDF at KRDS coordinates
-            # This prevents creating single rectangles that highlight unwanted words
-            print(f"\n📍 STEP 4: Extracting text at KRDS coordinates for remaining annotations...")
-            coord_extracted_count = 0
-            for ann in coordinate_based_annotations:
-                if 'precise_quads' not in ann and ann.get('type') == 'highlight':
-                    pdf_page = ann.get('pdf_page_0based', 0)
-                    if 0 <= pdf_page < len(pdf_doc):
-                        page = pdf_doc[pdf_page]
-                        
-                        # Get the KRDS rectangle
-                        pdf_x = ann.get('pdf_x', 0)
-                        pdf_y = ann.get('pdf_y', 0)
-                        pdf_width = ann.get('pdf_width', 0)
-                        pdf_height = ann.get('pdf_height', 0)
-                        
-                        if pdf_width > 0 and pdf_height > 0:
-                            # Extract text from this rectangle
-                            krds_rect = fitz.Rect(pdf_x, pdf_y, pdf_x + pdf_width, pdf_y + pdf_height)
-                            text_in_rect = page.get_textbox(krds_rect).strip()
-                            
-                            if text_in_rect:
-                                # Search for this text in the PDF to get proper quads
-                                search_quads = page.search_for(text_in_rect, quads=True)
-                                
-                                if search_quads:
-                                    # Filter to quads near the expected position
-                                    filtered_quads = filter_quads_by_proximity(
-                                        search_quads, 
-                                        pdf_x, 
-                                        pdf_y,
-                                        len(text_in_rect)
-                                    )
-                                    
-                                    if filtered_quads:
-                                        ann['precise_quads'] = filtered_quads
-                                        ann['source'] = 'coordinate_text_extraction'
-                                        coord_extracted_count += 1
-                                        
-                                        # Update bounding box to match the quads
-                                        all_x0 = [q.rect.x0 for q in filtered_quads]
-                                        all_y0 = [q.rect.y0 for q in filtered_quads]
-                                        all_x1 = [q.rect.x1 for q in filtered_quads]
-                                        all_y1 = [q.rect.y1 for q in filtered_quads]
-                                        
-                                        if all_x0 and all_y0 and all_x1 and all_y1:
-                                            text_rect = fitz.Rect(
-                                                min(all_x0), 
-                                                min(all_y0),
-                                                max(all_x1),
-                                                max(all_y1)
-                                            )
-                                            ann['pdf_x'] = text_rect.x0
-                                            ann['pdf_y'] = text_rect.y0
-                                            ann['pdf_width'] = text_rect.width
-                                            ann['pdf_height'] = text_rect.height
-            
-            if coord_extracted_count > 0:
-                print(f"   ✅ Extracted precise quads for {coord_extracted_count} coordinate-only annotations")
-            
             corrected_annotations = coordinate_based_annotations
         else:
             print("   ⚠️  No PDF path available for text-based matching, using coordinate-based approach...")

@@ -1,0 +1,20 @@
+# Authors and Contributors
+
+## Main Author and Maintainer
+- **Marcin Miłkowski** <marcinmilkowski@gmail.com>
+  - Lead developer and maintainer
+  - PDF coordinate system conversion algorithms
+  - Amazon Kindle data format reverse engineering
+  - End-to-end application architecture
+
+## Acknowledgments
+
+This project incorporates and extends GPL-licensed code and research from:
+- **John Howell** - Kindle annotation parsing algorithms (KRDS project)
+  - https://github.com/K-R-D-S/KRDS
+
+## License
+
+This project is released under the GNU General Public License v3.0 or later (GPL-3.0-or-later).
+
+See LICENSE file for full license text.

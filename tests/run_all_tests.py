@@ -28,6 +28,7 @@ def main():
     
     # List of test files to run (in order)
     test_files = [
+        'test_short_text_filtering.py',     # Unit tests for short text filtering
         'test_integration_end_to_end.py',  # Main integration test
         'test_peirce_text_coverage.py',    # Text coverage validation
         'test_highlight_positions.py',      # Position verification

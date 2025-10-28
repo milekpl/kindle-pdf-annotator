@@ -1,0 +1,35 @@
+# Include important documentation files
+include README.md
+include LICENSE
+include CHANGELOG.md
+include AUTHORS
+include requirements.txt
+include pyproject.toml
+
+# Include documentation
+graft docs
+prune docs/archive
+
+# Include examples
+graft examples
+prune examples/sample_data
+
+# Exclude unnecessary files
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.so
+global-exclude .DS_Store
+global-exclude *.swp
+global-exclude *.swo
+
+# Exclude development and test files
+prune tests
+prune scripts
+prune learn
+prune learning_output
+prune old_format
+
+# Exclude build artifacts
+prune build
+prune dist
+prune *.egg-info

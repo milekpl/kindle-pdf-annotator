@@ -73,8 +73,8 @@ def test_page_9_highlights():
     # Test files
     json_file = 'tests/page_9_test_annotations.json'
     clippings_file = 'tests/page_9_test_clippings.txt'
-    pdf_file = 'tests/page_9_test.pdf'
-    output_file = 'tests/page_9_annotated.pdf'
+    pdf_file = 'examples/sample_data/page_9_test.pdf'
+    output_file = 'tests/output/page_9_annotated.pdf'
     book_name = 'rorot-thesis-20250807'
     
     print(f"   Input PDF: {pdf_file}")
