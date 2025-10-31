@@ -29,23 +29,47 @@ The application was tested using Kindle Paperwhite (6th generation). Newer devic
 
 ![Annotated PDF Example](https://raw.githubusercontent.com/milekpl/kindle-pdf-annotator/main/screenshot_pdf.png)
 
+## Installation
+
+### From PyPI (Recommended)
+
+Install the package using pip:
+
+```bash
+pip install kindle-pdf-annotator
+```
+
+### From Source
+
+1. Clone the repository
+2. Install dependencies: `pip install -r requirements.txt`
+3. Run: `python main.py` (GUI) or `python cli.py --help` (CLI)
+
 ## Quick Start
 
 ### GUI Mode
+
+If installed from PyPI:
+```bash
+kindle-pdf-annotator-gui
+```
+
+If running from source:
 ```bash
 python main.py
 ```
 
 ### CLI Mode
+
+If installed from PyPI:
+```bash
+kindle-pdf-annotator --kindle-folder "path/to/book.sdr" --pdf-file "book.pdf" --output "annotated.pdf"
+```
+
+If running from source:
 ```bash
 python cli.py --kindle-folder "path/to/book.sdr" --pdf-file "book.pdf" --output "annotated.pdf"
 ```
-
-## Installation
-
-1. Clone the repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Run: `python main.py` (GUI) or `python cli.py --help` (CLI)
 
 ## Project Structure
 
